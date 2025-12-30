@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      creator_content: {
+        Row: {
+          content: string
+          created_at: string
+          creator_id: string
+          id: string
+          key_insights: string | null
+          platform: string
+          posted_at: string | null
+          source_url: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          creator_id: string
+          id?: string
+          key_insights?: string | null
+          platform?: string
+          posted_at?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          creator_id?: string
+          id?: string
+          key_insights?: string | null
+          platform?: string
+          posted_at?: string | null
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_content_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "reference_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_posts: {
         Row: {
           content: string
@@ -90,7 +131,7 @@ export type Database = {
         Row: {
           analyzed: boolean | null
           created_at: string
-          field: string | null
+          field: string[] | null
           id: string
           instagram: boolean | null
           linkedin: boolean | null
@@ -106,7 +147,7 @@ export type Database = {
         Insert: {
           analyzed?: boolean | null
           created_at?: string
-          field?: string | null
+          field?: string[] | null
           id?: string
           instagram?: boolean | null
           linkedin?: boolean | null
@@ -122,7 +163,7 @@ export type Database = {
         Update: {
           analyzed?: boolean | null
           created_at?: string
-          field?: string | null
+          field?: string[] | null
           id?: string
           instagram?: boolean | null
           linkedin?: boolean | null
