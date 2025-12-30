@@ -86,6 +86,57 @@ export type Database = {
         }
         Relationships: []
       }
+      reference_creators: {
+        Row: {
+          analyzed: boolean | null
+          created_at: string
+          field: string | null
+          id: string
+          instagram: boolean | null
+          linkedin: boolean | null
+          name: string
+          notes: string | null
+          priority: string | null
+          spotify: boolean | null
+          style_profile: Json | null
+          updated_at: string
+          x_twitter: boolean | null
+          youtube: boolean | null
+        }
+        Insert: {
+          analyzed?: boolean | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          instagram?: boolean | null
+          linkedin?: boolean | null
+          name: string
+          notes?: string | null
+          priority?: string | null
+          spotify?: boolean | null
+          style_profile?: Json | null
+          updated_at?: string
+          x_twitter?: boolean | null
+          youtube?: boolean | null
+        }
+        Update: {
+          analyzed?: boolean | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          instagram?: boolean | null
+          linkedin?: boolean | null
+          name?: string
+          notes?: string | null
+          priority?: string | null
+          spotify?: boolean | null
+          style_profile?: Json | null
+          updated_at?: string
+          x_twitter?: boolean | null
+          youtube?: boolean | null
+        }
+        Relationships: []
+      }
       style_guide: {
         Row: {
           content: string
