@@ -218,8 +218,18 @@ export const ReferenceCreatorsManager = () => {
     }));
   };
 
+  // Normalize priorities to handle both Czech and English
+  const normalizePriority = (p: string | null): string => {
+    if (!p) return "Low";
+    const normalized = p.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalized.includes("velmi") || normalized.includes("very")) return "VERY HIGH";
+    if (normalized.includes("vysok") || normalized === "high") return "High";
+    if (normalized.includes("stred") || normalized === "medium") return "Medium";
+    return "Low";
+  };
+
   const groupedByPriority = creators.reduce((acc, creator) => {
-    const priority = creator.priority || "Low";
+    const priority = normalizePriority(creator.priority);
     if (!acc[priority]) acc[priority] = [];
     acc[priority].push(creator);
     return acc;

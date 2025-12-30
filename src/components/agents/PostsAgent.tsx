@@ -29,6 +29,13 @@ interface ContentSchedule {
   }[];
 }
 
+interface PerformanceMetrics {
+  views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+}
+
 interface PublishedPost {
   id: string;
   content: string;
@@ -39,7 +46,7 @@ interface PublishedPost {
   was_published: boolean | null;
   user_rating: number | null;
   user_feedback: string | null;
-  performance_metrics: Record<string, unknown> | null;
+  performance_metrics: PerformanceMetrics | null;
 }
 
 const EXAMPLE_SCHEDULE: ContentSchedule = {
@@ -182,7 +189,12 @@ export const PostsAgent = () => {
         .order("published_at", { ascending: false });
 
       if (error) throw error;
-      setPublishedPosts(data || []);
+      // Cast to correct type
+      const posts = (data || []).map(p => ({
+        ...p,
+        performance_metrics: p.performance_metrics as PerformanceMetrics | null
+      }));
+      setPublishedPosts(posts);
     } catch (error) {
       console.error("Error fetching published posts:", error);
       toast.error("Failed to load published posts");
