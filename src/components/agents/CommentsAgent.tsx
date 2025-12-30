@@ -23,12 +23,20 @@ export const CommentsAgent = () => {
     setIsGenerating(true);
     
     try {
+      // Fetch active style guide
+      const { data: styleGuideData } = await supabase
+        .from("style_guide")
+        .select("content")
+        .eq("is_active", true)
+        .single();
+
       const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
           type: "comment",
           postContent: postContent,
           style: selectedStyle,
           angle: angle,
+          styleGuide: styleGuideData?.content || undefined,
         },
       });
 
