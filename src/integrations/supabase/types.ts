@@ -14,7 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      generated_posts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          performance_metrics: Json | null
+          platform: string
+          prompt_used: string | null
+          published_at: string | null
+          status: string
+          style_guide_version: number | null
+          user_feedback: string | null
+          user_rating: number | null
+          was_published: boolean | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          performance_metrics?: Json | null
+          platform?: string
+          prompt_used?: string | null
+          published_at?: string | null
+          status?: string
+          style_guide_version?: number | null
+          user_feedback?: string | null
+          user_rating?: number | null
+          was_published?: boolean | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          performance_metrics?: Json | null
+          platform?: string
+          prompt_used?: string | null
+          published_at?: string | null
+          status?: string
+          style_guide_version?: number | null
+          user_feedback?: string | null
+          user_rating?: number | null
+          was_published?: boolean | null
+        }
+        Relationships: []
+      }
+      historical_posts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          performance_notes: string | null
+          platform: string
+          posted_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          performance_notes?: string | null
+          platform?: string
+          posted_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          performance_notes?: string | null
+          platform?: string
+          posted_at?: string | null
+        }
+        Relationships: []
+      }
+      style_guide: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
