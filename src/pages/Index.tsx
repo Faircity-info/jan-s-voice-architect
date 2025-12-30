@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, BarChart3, FileText, Code2, RefreshCw } from "lucide-react";
+import { Plus, Users, BarChart3, FileText, Code2, RefreshCw, User } from "lucide-react";
 import { Header } from "@/components/Header";
 import { CreatorCard } from "@/components/CreatorCard";
 import { StyleRadar } from "@/components/StyleRadar";
@@ -12,6 +12,7 @@ import { DosDontsCard } from "@/components/DosDontsCard";
 import { AddCreatorForm } from "@/components/AddCreatorForm";
 import { StrategicContextCard } from "@/components/StrategicContextCard";
 import { ContinuousLearning } from "@/components/ContinuousLearning";
+import { JansContentSection } from "@/components/JansContentSection";
 import { ReferenceCreator } from "@/types/style";
 import {
   mockCreators,
@@ -24,9 +25,10 @@ import {
   mockStrategicContext,
 } from "@/data/mockData";
 
-type Tab = "creators" | "synthesis" | "manifesto" | "object";
+type Tab = "jans-content" | "creators" | "synthesis" | "manifesto" | "object";
 
 const tabs = [
+  { id: "jans-content" as Tab, label: "Jan's Own Content", icon: User },
   { id: "creators" as Tab, label: "Reference Creators", icon: Users },
   { id: "synthesis" as Tab, label: "Style Synthesis", icon: BarChart3 },
   { id: "manifesto" as Tab, label: "Voice Manifesto", icon: FileText },
@@ -34,7 +36,7 @@ const tabs = [
 ];
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<Tab>("creators");
+  const [activeTab, setActiveTab] = useState<Tab>("jans-content");
   const [creators, setCreators] = useState<ReferenceCreator[]>(mockCreators);
   const [showAddCreator, setShowAddCreator] = useState(false);
 
@@ -144,6 +146,8 @@ const Index = () => {
 
         {/* Tab Content */}
         <AnimatePresence mode="wait">
+          {activeTab === "jans-content" && <JansContentSection />}
+
           {activeTab === "creators" && (
             <motion.div
               key="creators"
