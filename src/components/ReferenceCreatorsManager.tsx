@@ -388,89 +388,95 @@ export const ReferenceCreatorsManager = () => {
 
       {/* Grouped by Priority */}
       <div className="space-y-6">
-        {priorityOrder.map((priority) => {
-          const items = groupedByPriority[priority];
-          if (!items || items.length === 0) return null;
+        {creators.length === 0 ? (
+          <div className="p-8 rounded-xl bg-card border border-border border-dashed text-center">
+            <p className="text-muted-foreground">No creators added yet. Click "Add Creator" to get started.</p>
+          </div>
+        ) : (
+          priorityOrder.map((priority) => {
+            const items = groupedByPriority[priority];
+            if (!items || items.length === 0) return null;
 
-          return (
-            <div key={priority}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${priorityColors[priority]}`}>
-                  {priority}
-                </span>
-                <span className="text-xs text-muted-foreground">({items.length})</span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((creator, index) => (
-                  <motion.div
-                    key={creator.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="group p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-medium text-foreground">{creator.name}</h3>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setContentEditorCreator(creator)}
-                          className="p-1.5 rounded-lg hover:bg-primary/20 transition-colors"
-                          title="Manage content"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-primary" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(creator)}
-                          className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(creator.id)}
-                          className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </button>
+            return (
+              <div key={priority}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${priorityColors[priority]}`}>
+                    {priority}
+                  </span>
+                  <span className="text-xs text-muted-foreground">({items.length})</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map((creator, index) => (
+                    <motion.div
+                      key={creator.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="group p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-medium text-foreground">{creator.name}</h3>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setContentEditorCreator(creator)}
+                            className="p-1.5 rounded-lg hover:bg-primary/20 transition-colors"
+                            title="Manage content"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-primary" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(creator)}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(creator.id)}
+                            className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    {creator.field && creator.field.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {creator.field.map((f) => (
-                          <span key={f} className="px-1.5 py-0.5 rounded text-[10px] bg-accent text-accent-foreground">
-                            {f}
-                          </span>
+                      {creator.field && creator.field.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {creator.field.map((f) => (
+                            <span key={f} className="px-1.5 py-0.5 rounded text-[10px] bg-accent text-accent-foreground">
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 mb-2">
+                        {(["youtube", "instagram", "linkedin", "x_twitter", "spotify"] as const).map((platform) => (
+                          <PlatformIcon
+                            key={platform}
+                            platform={platform}
+                            active={creator[platform]}
+                          />
                         ))}
                       </div>
-                    )}
 
-                    <div className="flex items-center gap-2 mb-2">
-                      {(["youtube", "instagram", "linkedin", "x_twitter", "spotify"] as const).map((platform) => (
-                        <PlatformIcon
-                          key={platform}
-                          platform={platform}
-                          active={creator[platform]}
-                        />
-                      ))}
-                    </div>
+                      {creator.notes && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{creator.notes}</p>
+                      )}
 
-                    {creator.notes && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{creator.notes}</p>
-                    )}
-
-                    {creator.content_notes && (
-                      <div className="mt-2 pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground line-clamp-1">
-                          <span className="text-primary">Content saved</span>
-                        </p>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
+                      {creator.content_notes && (
+                        <div className="mt-2 pt-2 border-t border-border">
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            <span className="text-primary">Content saved</span>
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Content Editor Modal */}
