@@ -1,93 +1,25 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, BarChart3, FileText, Code2, RefreshCw, User, Eye } from "lucide-react";
+import { Users, FileText, MessageSquare, MessagesSquare, PenLine } from "lucide-react";
 import { Header } from "@/components/Header";
-import { CreatorCard } from "@/components/CreatorCard";
-import { StyleRadar } from "@/components/StyleRadar";
-import { StyleRulesCard } from "@/components/StyleRulesCard";
-import { StyleObjectViewer } from "@/components/StyleObjectViewer";
-import { ManifestoCard } from "@/components/ManifestoCard";
-import { ToneExamples } from "@/components/ToneExamples";
-import { DosDontsCard } from "@/components/DosDontsCard";
-import { AddCreatorForm } from "@/components/AddCreatorForm";
-import { StrategicContextCard } from "@/components/StrategicContextCard";
-import { ContinuousLearning } from "@/components/ContinuousLearning";
 import { JansContentSection } from "@/components/JansContentSection";
 import { ReferenceCreatorsManager } from "@/components/ReferenceCreatorsManager";
-import { ReferenceCreator } from "@/types/style";
-import {
-  mockCreators,
-  mockStyleDimensions,
-  mockStyleRules,
-  mockStyleObject,
-  mockManifesto,
-  mockStyleGuide,
-  mockToneExamples,
-  mockStrategicContext,
-} from "@/data/mockData";
+import { PostsAgent } from "@/components/agents/PostsAgent";
+import { RepliesAgent } from "@/components/agents/RepliesAgent";
+import { CommentsAgent } from "@/components/agents/CommentsAgent";
 
-type Tab = "jans-content" | "influencers" | "creators" | "synthesis" | "manifesto" | "object";
+type Tab = "jans-content" | "creators" | "agent-posts" | "agent-replies" | "agent-comments";
 
 const tabs = [
-  { id: "jans-content" as Tab, label: "Jan's Own Content", icon: User },
-  { id: "influencers" as Tab, label: "Influenceři", icon: Eye },
+  { id: "jans-content" as Tab, label: "Jan's Content", icon: FileText },
   { id: "creators" as Tab, label: "Reference Creators", icon: Users },
-  { id: "synthesis" as Tab, label: "Style Synthesis", icon: BarChart3 },
-  { id: "manifesto" as Tab, label: "Voice Manifesto", icon: FileText },
-  { id: "object" as Tab, label: "Style Object", icon: Code2 },
+  { id: "agent-posts" as Tab, label: "Posts Agent", icon: PenLine },
+  { id: "agent-replies" as Tab, label: "Replies Agent", icon: MessageSquare },
+  { id: "agent-comments" as Tab, label: "Comments Agent", icon: MessagesSquare },
 ];
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("jans-content");
-  const [creators, setCreators] = useState<ReferenceCreator[]>(mockCreators);
-  const [showAddCreator, setShowAddCreator] = useState(false);
-
-  const handleAddCreator = (data: Omit<ReferenceCreator, "id" | "analyzed" | "styleProfile">) => {
-    const newCreator: ReferenceCreator = {
-      ...data,
-      id: Date.now().toString(),
-      analyzed: false,
-    };
-    setCreators((prev) => [...prev, newCreator]);
-    
-    // Simulate analysis after 2 seconds
-    setTimeout(() => {
-      setCreators((prev) =>
-        prev.map((c) =>
-          c.id === newCreator.id
-            ? {
-                ...c,
-                analyzed: true,
-                styleProfile: {
-                  hookMechanics: {
-                    patterns: ["Pattern interrupt", "Bold claim"],
-                    style: "authority",
-                  },
-                  sentenceStructure: {
-                    avgLength: "short",
-                    usesFragments: true,
-                    rhythmScore: 7,
-                  },
-                  toneAttributes: {
-                    calm: 6,
-                    aggressive: 5,
-                    playful: 4,
-                    certainty: 8,
-                    emotionalTemperature: 6,
-                  },
-                  cognitiveStyle: ["First-principles", "Frameworks"],
-                  languageMarkers: {
-                    typicalPhrases: ["The key is", "What works"],
-                    metaphors: ["Building blocks"],
-                    tabooWords: ["Maybe", "Perhaps"],
-                  },
-                },
-              }
-            : c
-        )
-      );
-    }, 2000);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -104,18 +36,11 @@ const Index = () => {
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-                Style Analysis <span className="text-gradient">Agent #1</span>
+                Content Engine <span className="text-gradient">for Jan Kluz</span>
               </h1>
               <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
-                Voice architecture system for Jan Kluz. Analyze elite creators, synthesize unique style, 
-                generate the system that all other agents must obey.
+                3-agent system for content creation: posts, replies to comments, and proactive comments.
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted/50 border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-all text-sm">
-                <RefreshCw className="w-4 h-4" />
-                Re-analyze All
-              </button>
             </div>
           </div>
         </motion.div>
@@ -150,9 +75,9 @@ const Index = () => {
         <AnimatePresence mode="wait">
           {activeTab === "jans-content" && <JansContentSection />}
 
-          {activeTab === "influencers" && (
+          {activeTab === "creators" && (
             <motion.div
-              key="influencers"
+              key="creators"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -162,99 +87,43 @@ const Index = () => {
             </motion.div>
           )}
 
-          {activeTab === "creators" && (
+          {activeTab === "agent-posts" && (
             <motion.div
-              key="creators"
+              key="agent-posts"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-foreground">Reference Creators</h2>
-                    <button
-                      onClick={() => setShowAddCreator(true)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all text-sm font-medium"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Creator
-                    </button>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {creators.map((creator, index) => (
-                      <CreatorCard key={creator.id} creator={creator} index={index} />
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="space-y-6">
-                  <StrategicContextCard context={mockStrategicContext} />
-                </div>
-              </div>
+              <PostsAgent />
             </motion.div>
           )}
 
-          {activeTab === "synthesis" && (
+          {activeTab === "agent-replies" && (
             <motion.div
-              key="synthesis"
+              key="agent-replies"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="grid lg:grid-cols-2 gap-6">
-                <StyleRadar dimensions={mockStyleDimensions} />
-                <StyleRulesCard rules={mockStyleRules} />
-              </div>
-              <div className="mt-6">
-                <ContinuousLearning />
-              </div>
+              <RepliesAgent />
             </motion.div>
           )}
 
-          {activeTab === "manifesto" && (
+          {activeTab === "agent-comments" && (
             <motion.div
-              key="manifesto"
+              key="agent-comments"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="grid lg:grid-cols-2 gap-6">
-                <ManifestoCard manifesto={mockManifesto} />
-                <DosDontsCard guide={mockStyleGuide} />
-              </div>
-              <div className="mt-6">
-                <ToneExamples examples={mockToneExamples} />
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === "object" && (
-            <motion.div
-              key="object"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <StyleObjectViewer styleObject={mockStyleObject} />
+              <CommentsAgent />
             </motion.div>
           )}
         </AnimatePresence>
       </main>
-
-      {/* Add Creator Modal */}
-      <AnimatePresence>
-        {showAddCreator && (
-          <AddCreatorForm
-            onAdd={handleAddCreator}
-            onClose={() => setShowAddCreator(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };

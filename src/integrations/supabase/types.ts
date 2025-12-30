@@ -130,6 +130,7 @@ export type Database = {
       reference_creators: {
         Row: {
           analyzed: boolean | null
+          content_notes: string | null
           created_at: string
           field: string[] | null
           id: string
@@ -146,6 +147,7 @@ export type Database = {
         }
         Insert: {
           analyzed?: boolean | null
+          content_notes?: string | null
           created_at?: string
           field?: string[] | null
           id?: string
@@ -162,6 +164,7 @@ export type Database = {
         }
         Update: {
           analyzed?: boolean | null
+          content_notes?: string | null
           created_at?: string
           field?: string[] | null
           id?: string
