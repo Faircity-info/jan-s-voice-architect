@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, BarChart3, FileText, Code2, RefreshCw, User } from "lucide-react";
+import { Plus, Users, BarChart3, FileText, Code2, RefreshCw, User, Eye } from "lucide-react";
 import { Header } from "@/components/Header";
 import { CreatorCard } from "@/components/CreatorCard";
 import { StyleRadar } from "@/components/StyleRadar";
@@ -13,6 +13,7 @@ import { AddCreatorForm } from "@/components/AddCreatorForm";
 import { StrategicContextCard } from "@/components/StrategicContextCard";
 import { ContinuousLearning } from "@/components/ContinuousLearning";
 import { JansContentSection } from "@/components/JansContentSection";
+import { ReferenceCreatorsManager } from "@/components/ReferenceCreatorsManager";
 import { ReferenceCreator } from "@/types/style";
 import {
   mockCreators,
@@ -25,10 +26,11 @@ import {
   mockStrategicContext,
 } from "@/data/mockData";
 
-type Tab = "jans-content" | "creators" | "synthesis" | "manifesto" | "object";
+type Tab = "jans-content" | "influencers" | "creators" | "synthesis" | "manifesto" | "object";
 
 const tabs = [
   { id: "jans-content" as Tab, label: "Jan's Own Content", icon: User },
+  { id: "influencers" as Tab, label: "Influenceři", icon: Eye },
   { id: "creators" as Tab, label: "Reference Creators", icon: Users },
   { id: "synthesis" as Tab, label: "Style Synthesis", icon: BarChart3 },
   { id: "manifesto" as Tab, label: "Voice Manifesto", icon: FileText },
@@ -147,6 +149,18 @@ const Index = () => {
         {/* Tab Content */}
         <AnimatePresence mode="wait">
           {activeTab === "jans-content" && <JansContentSection />}
+
+          {activeTab === "influencers" && (
+            <motion.div
+              key="influencers"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ReferenceCreatorsManager />
+            </motion.div>
+          )}
 
           {activeTab === "creators" && (
             <motion.div
