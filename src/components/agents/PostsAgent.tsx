@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Lightbulb, Sparkles, Upload, Save, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Lightbulb, Sparkles, Upload, Save, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "weekly" | "adhoc";
 
@@ -10,6 +11,7 @@ interface ScheduleItem {
   format: string;
   topic: "ai" | "business" | "lifestyle";
   description: string;
+  generatedContent?: string;
 }
 
 interface DaySchedule {
@@ -120,11 +122,16 @@ const DAY_NAMES: Record<string, string> = {
 export const PostsAgent = () => {
   const [mode, setMode] = useState<Mode>("weekly");
   const [adhocIdea, setAdhocIdea] = useState("");
+  const [adhocPlatform, setAdhocPlatform] = useState("linkedin");
+  const [adhocCategory, setAdhocCategory] = useState("ai");
   const [schedule, setSchedule] = useState<ContentSchedule | null>(null);
   const [jsonInput, setJsonInput] = useState("");
   const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<1 | 2>(1);
   const [selectedDay, setSelectedDay] = useState<DaySchedule | null>(null);
+  const [generatingItem, setGeneratingItem] = useState<string | null>(null);
+  const [isGeneratingAdhoc, setIsGeneratingAdhoc] = useState(false);
+  const [adhocResult, setAdhocResult] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -158,6 +165,101 @@ export const PostsAgent = () => {
     if (schedule) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(schedule));
       toast.success("Schedule saved");
+    }
+  };
+
+  const handleGeneratePost = async (item: ScheduleItem, dayIndex: number, itemIndex: number) => {
+    const itemKey = `${dayIndex}-${itemIndex}`;
+    setGeneratingItem(itemKey);
+    
+    try {
+      // Fetch creator content for relevant topics
+      const { data: creators } = await supabase
+        .from("reference_creators")
+        .select("name, content_notes, field")
+        .not("content_notes", "is", null);
+
+      const relevantContent = creators
+        ?.filter(c => c.field?.some(f => f.toLowerCase() === item.topic))
+        .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
+        .join("\n\n") || "";
+
+      const { data, error } = await supabase.functions.invoke("generate-content", {
+        body: {
+          type: "post",
+          topic: item.description,
+          platform: item.platform,
+          category: item.topic,
+          format: item.format,
+          description: item.description,
+          creatorContent: relevantContent,
+        },
+      });
+
+      if (error) throw error;
+
+      // Update the item with generated content
+      if (selectedDay && schedule) {
+        const updatedSchedule = { ...schedule };
+        const weekData = updatedSchedule.weeks.find(w => w.week === currentWeek);
+        if (weekData) {
+          const day = weekData.days.find(d => d.day === selectedDay.day);
+          if (day) {
+            day.items[itemIndex].generatedContent = data.content;
+            setSchedule(updatedSchedule);
+            setSelectedDay({ ...selectedDay, items: [...day.items] });
+          }
+        }
+      }
+
+      toast.success("Post generated!");
+    } catch (error) {
+      console.error("Generation error:", error);
+      toast.error("Failed to generate post");
+    } finally {
+      setGeneratingItem(null);
+    }
+  };
+
+  const handleGenerateAdhoc = async () => {
+    if (!adhocIdea.trim()) {
+      toast.error("Please enter an idea first");
+      return;
+    }
+
+    setIsGeneratingAdhoc(true);
+    
+    try {
+      const { data: creators } = await supabase
+        .from("reference_creators")
+        .select("name, content_notes, field")
+        .not("content_notes", "is", null);
+
+      const relevantContent = creators
+        ?.filter(c => c.field?.some(f => f.toLowerCase() === adhocCategory))
+        .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
+        .join("\n\n") || "";
+
+      const { data, error } = await supabase.functions.invoke("generate-content", {
+        body: {
+          type: "post",
+          topic: adhocIdea,
+          platform: adhocPlatform,
+          category: adhocCategory,
+          format: "post",
+          creatorContent: relevantContent,
+        },
+      });
+
+      if (error) throw error;
+
+      setAdhocResult(data.content);
+      toast.success("Post generated!");
+    } catch (error) {
+      console.error("Generation error:", error);
+      toast.error("Failed to generate post");
+    } finally {
+      setIsGeneratingAdhoc(false);
     }
   };
 
@@ -323,29 +425,50 @@ export const PostsAgent = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {selectedDay.items.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 rounded-lg bg-muted/30 border border-border/50"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`text-xs px-2 py-0.5 rounded border ${PLATFORM_COLORS[item.platform]}`}>
-                            {item.platform}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                            {item.format}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded ${TOPIC_COLORS[item.topic]}`}>
-                            {item.topic}
-                          </span>
+                    {selectedDay.items.map((item, idx) => {
+                      const dayIndex = currentWeekData?.days.findIndex(d => d.day === selectedDay.day) || 0;
+                      const itemKey = `${dayIndex}-${idx}`;
+                      const isGenerating = generatingItem === itemKey;
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-lg bg-muted/30 border border-border/50"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-xs px-2 py-0.5 rounded border ${PLATFORM_COLORS[item.platform]}`}>
+                              {item.platform}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                              {item.format}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${TOPIC_COLORS[item.topic]}`}>
+                              {item.topic}
+                            </span>
+                          </div>
+                          <p className="text-sm">{item.description}</p>
+                          
+                          {item.generatedContent && (
+                            <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                              <p className="text-sm whitespace-pre-wrap">{item.generatedContent}</p>
+                            </div>
+                          )}
+                          
+                          <button 
+                            onClick={() => handleGeneratePost(item, dayIndex, idx)}
+                            disabled={isGenerating}
+                            className="mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all text-sm disabled:opacity-50"
+                          >
+                            {isGenerating ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3 h-3" />
+                            )}
+                            {isGenerating ? "Generating..." : item.generatedContent ? "Regenerate" : "Generate"}
+                          </button>
                         </div>
-                        <p className="text-sm">{item.description}</p>
-                        <button className="mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all text-sm">
-                          <Sparkles className="w-3 h-3" />
-                          Generate
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}
@@ -401,15 +524,23 @@ export const PostsAgent = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium mb-2">Platform</label>
-                  <select className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
-                    <option>LinkedIn</option>
-                    <option>X / Twitter</option>
-                    <option>Instagram</option>
+                  <select 
+                    value={adhocPlatform}
+                    onChange={(e) => setAdhocPlatform(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  >
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="x">X / Twitter</option>
+                    <option value="instagram">Instagram</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Topic category</label>
-                  <select className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
+                  <select 
+                    value={adhocCategory}
+                    onChange={(e) => setAdhocCategory(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  >
                     <option value="ai">AI</option>
                     <option value="business">Business</option>
                     <option value="lifestyle">Lifestyle</option>
@@ -417,10 +548,29 @@ export const PostsAgent = () => {
                 </div>
               </div>
 
-              <button className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-medium">
-                <Sparkles className="w-4 h-4" />
-                Generate Post
+              <button 
+                onClick={handleGenerateAdhoc}
+                disabled={isGeneratingAdhoc}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-medium disabled:opacity-50"
+              >
+                {isGeneratingAdhoc ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {isGeneratingAdhoc ? "Generating..." : "Generate Post"}
               </button>
+
+              {adhocResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-lg bg-primary/5 border border-primary/20"
+                >
+                  <h4 className="font-medium mb-2">Generated Post</h4>
+                  <p className="text-sm whitespace-pre-wrap">{adhocResult}</p>
+                </motion.div>
+              )}
             </div>
           </div>
         </motion.div>
