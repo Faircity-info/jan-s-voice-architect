@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Calendar, Lightbulb, Sparkles, Upload, Save, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Calendar, Lightbulb, Sparkles, Upload, Save, ChevronLeft, ChevronRight, Loader2, Copy, Check, Bell, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "weekly" | "adhoc";
+type Mode = "weekly" | "adhoc" | "published";
 
 interface ScheduleItem {
   platform: "linkedin" | "x" | "instagram" | "youtube";
@@ -27,6 +27,19 @@ interface ContentSchedule {
     week: 1 | 2;
     days: DaySchedule[];
   }[];
+}
+
+interface PublishedPost {
+  id: string;
+  content: string;
+  platform: string;
+  status: string;
+  created_at: string;
+  published_at: string | null;
+  was_published: boolean | null;
+  user_rating: number | null;
+  user_feedback: string | null;
+  performance_metrics: Record<string, unknown> | null;
 }
 
 const EXAMPLE_SCHEDULE: ContentSchedule = {
@@ -105,6 +118,10 @@ const PLATFORM_COLORS: Record<string, string> = {
   x: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
   instagram: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   youtube: "bg-red-500/20 text-red-400 border-red-500/30",
+  LinkedIn: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  X: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  Instagram: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+  YouTube: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 const TOPIC_COLORS: Record<string, string> = {
@@ -132,6 +149,11 @@ export const PostsAgent = () => {
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
   const [isGeneratingAdhoc, setIsGeneratingAdhoc] = useState(false);
   const [adhocResult, setAdhocResult] = useState("");
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
+  const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
+  const [loadingPublished, setLoadingPublished] = useState(false);
+  const [editingMetrics, setEditingMetrics] = useState<string | null>(null);
+  const [metricsForm, setMetricsForm] = useState({ views: "", likes: "", comments: "", shares: "" });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -143,6 +165,31 @@ export const PostsAgent = () => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (mode === "published") {
+      fetchPublishedPosts();
+    }
+  }, [mode]);
+
+  const fetchPublishedPosts = async () => {
+    setLoadingPublished(true);
+    try {
+      const { data, error } = await supabase
+        .from("generated_posts")
+        .select("*")
+        .eq("was_published", true)
+        .order("published_at", { ascending: false });
+
+      if (error) throw error;
+      setPublishedPosts(data || []);
+    } catch (error) {
+      console.error("Error fetching published posts:", error);
+      toast.error("Failed to load published posts");
+    } finally {
+      setLoadingPublished(false);
+    }
+  };
 
   const handleLoadSchedule = () => {
     try {
@@ -168,12 +215,75 @@ export const PostsAgent = () => {
     }
   };
 
+  const handleCopy = async (content: string, itemKey: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedItem(itemKey);
+      toast.success("Copied to clipboard!");
+      setTimeout(() => setCopiedItem(null), 2000);
+    } catch {
+      toast.error("Failed to copy");
+    }
+  };
+
+  const handleMarkAsPosted = async (content: string, platform: string, itemKey: string) => {
+    try {
+      const { error } = await supabase
+        .from("generated_posts")
+        .insert({
+          content,
+          platform,
+          status: "published",
+          was_published: true,
+          published_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      toast.success("Marked as posted! Add performance metrics in 7 days.");
+    } catch (error) {
+      console.error("Error saving post:", error);
+      toast.error("Failed to save post");
+    }
+  };
+
+  const handleUpdateMetrics = async (postId: string) => {
+    try {
+      const metrics = {
+        views: metricsForm.views ? parseInt(metricsForm.views) : undefined,
+        likes: metricsForm.likes ? parseInt(metricsForm.likes) : undefined,
+        comments: metricsForm.comments ? parseInt(metricsForm.comments) : undefined,
+        shares: metricsForm.shares ? parseInt(metricsForm.shares) : undefined,
+      };
+
+      const { error } = await supabase
+        .from("generated_posts")
+        .update({ performance_metrics: metrics })
+        .eq("id", postId);
+
+      if (error) throw error;
+      
+      toast.success("Performance metrics saved!");
+      setEditingMetrics(null);
+      setMetricsForm({ views: "", likes: "", comments: "", shares: "" });
+      fetchPublishedPosts();
+    } catch (error) {
+      console.error("Error updating metrics:", error);
+      toast.error("Failed to save metrics");
+    }
+  };
+
+  const needsMetrics = (post: PublishedPost) => {
+    if (!post.published_at) return false;
+    const publishedDate = new Date(post.published_at);
+    const daysSince = (Date.now() - publishedDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince >= 7 && !post.performance_metrics;
+  };
+
   const handleGeneratePost = async (item: ScheduleItem, dayIndex: number, itemIndex: number) => {
     const itemKey = `${dayIndex}-${itemIndex}`;
     setGeneratingItem(itemKey);
     
     try {
-      // Fetch creator content for relevant topics
       const { data: creators } = await supabase
         .from("reference_creators")
         .select("name, content_notes, field")
@@ -184,6 +294,12 @@ export const PostsAgent = () => {
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
 
+      // Check if this is an AI news post
+      const isAINews = item.topic === "ai" && 
+        (item.description.toLowerCase().includes("news") || 
+         item.description.toLowerCase().includes("update") ||
+         item.description.toLowerCase().includes("weekend"));
+
       const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
           type: "post",
@@ -193,12 +309,12 @@ export const PostsAgent = () => {
           format: item.format,
           description: item.description,
           creatorContent: relevantContent,
+          useWebSearch: isAINews,
         },
       });
 
       if (error) throw error;
 
-      // Update the item with generated content
       if (selectedDay && schedule) {
         const updatedSchedule = { ...schedule };
         const weekData = updatedSchedule.weeks.find(w => w.week === currentWeek);
@@ -240,6 +356,10 @@ export const PostsAgent = () => {
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
 
+      const isAINews = adhocCategory === "ai" && 
+        (adhocIdea.toLowerCase().includes("news") || 
+         adhocIdea.toLowerCase().includes("update"));
+
       const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
           type: "post",
@@ -248,6 +368,7 @@ export const PostsAgent = () => {
           category: adhocCategory,
           format: "post",
           creatorContent: relevantContent,
+          useWebSearch: isAINews,
         },
       });
 
@@ -264,6 +385,7 @@ export const PostsAgent = () => {
   };
 
   const currentWeekData = schedule?.weeks.find(w => w.week === currentWeek);
+  const postsNeedingMetrics = publishedPosts.filter(needsMetrics);
 
   return (
     <div className="space-y-6">
@@ -290,6 +412,22 @@ export const PostsAgent = () => {
         >
           <Lightbulb className="w-4 h-4" />
           Ad-hoc Post
+        </button>
+        <button
+          onClick={() => setMode("published")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all relative ${
+            mode === "published"
+              ? "bg-primary text-primary-foreground shadow-lg"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Published
+          {postsNeedingMetrics.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+              {postsNeedingMetrics.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -451,6 +589,26 @@ export const PostsAgent = () => {
                           {item.generatedContent && (
                             <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                               <p className="text-sm whitespace-pre-wrap">{item.generatedContent}</p>
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={() => handleCopy(item.generatedContent!, itemKey)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted transition-all text-xs"
+                                >
+                                  {copiedItem === itemKey ? (
+                                    <Check className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                  {copiedItem === itemKey ? "Copied!" : "Copy"}
+                                </button>
+                                <button
+                                  onClick={() => handleMarkAsPosted(item.generatedContent!, item.platform, itemKey)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all text-xs"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Mark as Posted
+                                </button>
+                              </div>
                             </div>
                           )}
                           
@@ -492,7 +650,7 @@ export const PostsAgent = () => {
             </div>
           )}
         </motion.div>
-      ) : (
+      ) : mode === "adhoc" ? (
         <motion.div
           key="adhoc"
           initial={{ opacity: 0, y: 10 }}
@@ -569,10 +727,199 @@ export const PostsAgent = () => {
                 >
                   <h4 className="font-medium mb-2">Generated Post</h4>
                   <p className="text-sm whitespace-pre-wrap">{adhocResult}</p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleCopy(adhocResult, "adhoc")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted transition-all text-xs"
+                    >
+                      {copiedItem === "adhoc" ? (
+                        <Check className="w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      {copiedItem === "adhoc" ? "Copied!" : "Copy"}
+                    </button>
+                    <button
+                      onClick={() => handleMarkAsPosted(adhocResult, adhocPlatform, "adhoc")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all text-xs"
+                    >
+                      <Check className="w-3 h-3" />
+                      Mark as Posted
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </div>
           </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="published"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Alert for posts needing metrics */}
+          {postsNeedingMetrics.length > 0 && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+              <Bell className="w-5 h-5 text-amber-400 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-400">
+                  {postsNeedingMetrics.length} post{postsNeedingMetrics.length > 1 ? "s" : ""} need performance metrics
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  These posts were published more than 7 days ago. Add their metrics to improve future content.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {loadingPublished ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : publishedPosts.length === 0 ? (
+            <div className="p-8 rounded-xl bg-card border border-border border-dashed text-center">
+              <BarChart3 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="font-semibold mb-2">No Published Posts Yet</h3>
+              <p className="text-sm text-muted-foreground">
+                Generate content and mark it as posted to track performance here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {publishedPosts.map((post) => {
+                const needsMetricsNow = needsMetrics(post);
+                
+                return (
+                  <div
+                    key={post.id}
+                    className={`p-4 rounded-xl bg-card border transition-all ${
+                      needsMetricsNow ? "border-amber-500/50" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded border ${PLATFORM_COLORS[post.platform] || PLATFORM_COLORS.linkedin}`}>
+                          {post.platform}
+                        </span>
+                        {needsMetricsNow && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                            Needs metrics
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {post.published_at ? new Date(post.published_at).toLocaleDateString() : "Unknown date"}
+                      </span>
+                    </div>
+                    
+                    <p className="text-sm whitespace-pre-wrap line-clamp-4 mb-3">{post.content}</p>
+                    
+                    {post.performance_metrics ? (
+                      <div className="flex flex-wrap gap-3 p-3 rounded-lg bg-muted/30">
+                        {post.performance_metrics.views !== undefined && (
+                          <div className="text-center">
+                            <p className="text-lg font-semibold">{post.performance_metrics.views}</p>
+                            <p className="text-xs text-muted-foreground">Views</p>
+                          </div>
+                        )}
+                        {post.performance_metrics.likes !== undefined && (
+                          <div className="text-center">
+                            <p className="text-lg font-semibold">{post.performance_metrics.likes}</p>
+                            <p className="text-xs text-muted-foreground">Likes</p>
+                          </div>
+                        )}
+                        {post.performance_metrics.comments !== undefined && (
+                          <div className="text-center">
+                            <p className="text-lg font-semibold">{post.performance_metrics.comments}</p>
+                            <p className="text-xs text-muted-foreground">Comments</p>
+                          </div>
+                        )}
+                        {post.performance_metrics.shares !== undefined && (
+                          <div className="text-center">
+                            <p className="text-lg font-semibold">{post.performance_metrics.shares}</p>
+                            <p className="text-xs text-muted-foreground">Shares</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : editingMetrics === post.id ? (
+                      <div className="p-3 rounded-lg bg-muted/30 space-y-3">
+                        <div className="grid grid-cols-4 gap-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Views</label>
+                            <input
+                              type="number"
+                              value={metricsForm.views}
+                              onChange={(e) => setMetricsForm({ ...metricsForm, views: e.target.value })}
+                              className="w-full px-2 py-1.5 rounded bg-background border border-border text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Likes</label>
+                            <input
+                              type="number"
+                              value={metricsForm.likes}
+                              onChange={(e) => setMetricsForm({ ...metricsForm, likes: e.target.value })}
+                              className="w-full px-2 py-1.5 rounded bg-background border border-border text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Comments</label>
+                            <input
+                              type="number"
+                              value={metricsForm.comments}
+                              onChange={(e) => setMetricsForm({ ...metricsForm, comments: e.target.value })}
+                              className="w-full px-2 py-1.5 rounded bg-background border border-border text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Shares</label>
+                            <input
+                              type="number"
+                              value={metricsForm.shares}
+                              onChange={(e) => setMetricsForm({ ...metricsForm, shares: e.target.value })}
+                              className="w-full px-2 py-1.5 rounded bg-background border border-border text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateMetrics(post.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs"
+                          >
+                            <Check className="w-3 h-3" />
+                            Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingMetrics(null);
+                              setMetricsForm({ views: "", likes: "", comments: "", shares: "" });
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditingMetrics(post.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all text-xs"
+                      >
+                        <BarChart3 className="w-3 h-3" />
+                        Add Performance Metrics
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
       )}
     </div>
