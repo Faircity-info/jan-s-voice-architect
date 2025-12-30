@@ -427,12 +427,52 @@ export const PostsAgent = () => {
     setGeneratingItem(itemKey);
     
     try {
+      // 1. Fetch active style guide from database
+      const { data: styleGuideData } = await supabase
+        .from("style_guide")
+        .select("content")
+        .eq("is_active", true)
+        .single();
+
+      // 2. Fetch creator notes (high-level style info)
       const { data: creators } = await supabase
         .from("reference_creators")
-        .select("name, content_notes, field")
+        .select("id, name, content_notes, field")
         .not("content_notes", "is", null);
 
-      // Match creators based on item's fields (case-insensitive match)
+      // 3. Fetch detailed creator content (RAG-style knowledge base)
+      const relevantCreatorIds = creators
+        ?.filter(c => c.field?.some(creatorField => 
+          item.fields.some(itemField => 
+            creatorField.toLowerCase() === itemField.toLowerCase()
+          )
+        ))
+        .map(c => c.id) || [];
+
+      const { data: creatorContentData } = await supabase
+        .from("creator_content")
+        .select("content, key_insights, platform")
+        .in("creator_id", relevantCreatorIds)
+        .limit(20); // Limit to prevent token overflow
+
+      // 4. Fetch historical posts to avoid duplication
+      const { data: historicalPosts } = await supabase
+        .from("historical_posts")
+        .select("content, platform")
+        .eq("platform", item.platform)
+        .order("posted_at", { ascending: false })
+        .limit(10);
+
+      // Also check generated posts that were published
+      const { data: publishedGenerated } = await supabase
+        .from("generated_posts")
+        .select("content, platform")
+        .eq("platform", item.platform)
+        .eq("was_published", true)
+        .order("published_at", { ascending: false })
+        .limit(10);
+
+      // Build creator notes string
       const relevantContent = creators
         ?.filter(c => c.field?.some(creatorField => 
           item.fields.some(itemField => 
@@ -441,6 +481,20 @@ export const PostsAgent = () => {
         ))
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
+
+      // Build RAG-style creator insights (actual content examples)
+      const creatorInsights = creatorContentData
+        ?.map(c => `[${c.platform}] ${c.key_insights || ""}\n${c.content.substring(0, 400)}`)
+        .join("\n---\n") || "";
+
+      // Build historical posts summary for duplication check
+      const allHistorical = [
+        ...(historicalPosts || []),
+        ...(publishedGenerated || [])
+      ];
+      const historicalSummary = allHistorical
+        .map(p => p.content.substring(0, 200))
+        .join("\n---\n");
 
       // Check if this is an AI news post (fields include AI and description mentions news)
       const isAINews = item.fields.includes("AI") && 
@@ -453,11 +507,14 @@ export const PostsAgent = () => {
           type: "post",
           topic: item.description,
           platform: item.platform,
-          category: item.fields[0]?.toLowerCase() || "ai", // Primary field
+          category: item.fields[0]?.toLowerCase() || "ai",
           format: item.format,
           contentType: item.contentType,
           description: item.description,
+          styleGuide: styleGuideData?.content || undefined,
           creatorContent: relevantContent,
+          creatorInsights: creatorInsights || undefined,
+          historicalPosts: historicalSummary || undefined,
           useWebSearch: isAINews,
           aiPrompt: item.aiPrompt,
           script: item.script,
@@ -497,15 +554,59 @@ export const PostsAgent = () => {
     setIsGeneratingAdhoc(true);
     
     try {
+      // 1. Fetch active style guide
+      const { data: styleGuideData } = await supabase
+        .from("style_guide")
+        .select("content")
+        .eq("is_active", true)
+        .single();
+
+      // 2. Fetch creator notes
       const { data: creators } = await supabase
         .from("reference_creators")
-        .select("name, content_notes, field")
+        .select("id, name, content_notes, field")
         .not("content_notes", "is", null);
+
+      // 3. Fetch detailed creator content for this category
+      const relevantCreatorIds = creators
+        ?.filter(c => c.field?.some(f => f.toLowerCase() === adhocCategory))
+        .map(c => c.id) || [];
+
+      const { data: creatorContentData } = await supabase
+        .from("creator_content")
+        .select("content, key_insights, platform")
+        .in("creator_id", relevantCreatorIds)
+        .limit(15);
+
+      // 4. Fetch historical posts for this platform
+      const { data: historicalPosts } = await supabase
+        .from("historical_posts")
+        .select("content")
+        .eq("platform", adhocPlatform)
+        .order("posted_at", { ascending: false })
+        .limit(10);
+
+      const { data: publishedGenerated } = await supabase
+        .from("generated_posts")
+        .select("content")
+        .eq("platform", adhocPlatform)
+        .eq("was_published", true)
+        .order("published_at", { ascending: false })
+        .limit(10);
 
       const relevantContent = creators
         ?.filter(c => c.field?.some(f => f.toLowerCase() === adhocCategory))
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
+
+      const creatorInsights = creatorContentData
+        ?.map(c => `[${c.platform}] ${c.key_insights || ""}\n${c.content.substring(0, 400)}`)
+        .join("\n---\n") || "";
+
+      const allHistorical = [...(historicalPosts || []), ...(publishedGenerated || [])];
+      const historicalSummary = allHistorical
+        .map(p => p.content.substring(0, 200))
+        .join("\n---\n");
 
       const isAINews = adhocCategory === "ai" && 
         (adhocIdea.toLowerCase().includes("news") || 
@@ -518,7 +619,10 @@ export const PostsAgent = () => {
           platform: adhocPlatform,
           category: adhocCategory,
           format: "post",
+          styleGuide: styleGuideData?.content || undefined,
           creatorContent: relevantContent,
+          creatorInsights: creatorInsights || undefined,
+          historicalPosts: historicalSummary || undefined,
           useWebSearch: isAINews,
         },
       });

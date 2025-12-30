@@ -22,12 +22,20 @@ export const RepliesAgent = () => {
     setIsGenerating(true);
     
     try {
+      // Fetch active style guide
+      const { data: styleGuideData } = await supabase
+        .from("style_guide")
+        .select("content")
+        .eq("is_active", true)
+        .single();
+
       const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
           type: "reply",
           comment: comment,
           context: context,
           tone: selectedTone.toLowerCase(),
+          styleGuide: styleGuideData?.content || undefined,
         },
       });
 
