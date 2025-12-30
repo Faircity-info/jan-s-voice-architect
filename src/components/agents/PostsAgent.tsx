@@ -6,11 +6,19 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "weekly" | "adhoc" | "published";
 
+type FieldType = "AI" | "Business" | "Personal Brand" | "Mindset" | "Tech" | "Startup" | "Education";
+type ContentType = "text" | "image" | "carousel" | "video";
+type CreationType = "ai-generated" | "self-created";
+
 interface ScheduleItem {
   platform: "linkedin" | "x" | "instagram" | "youtube";
   format: string;
-  topic: "ai" | "business" | "lifestyle";
+  fields: FieldType[]; // Which content areas this relates to
   description: string;
+  contentType: ContentType; // What type of content
+  creationType?: CreationType; // Only for non-text: AI generated or self-created
+  aiPrompt?: string; // For AI-generated images/videos
+  script?: string; // For self-created content: what to say/do, where to film
   generatedContent?: string;
 }
 
@@ -50,7 +58,7 @@ interface PublishedPost {
 }
 
 const EXAMPLE_SCHEDULE: ContentSchedule = {
-  version: "1.0",
+  version: "2.0",
   period: "biweekly",
   weeks: [
     {
@@ -60,26 +68,82 @@ const EXAMPLE_SCHEDULE: ContentSchedule = {
           day: "monday",
           theme: "AI News & Insights",
           items: [
-            { platform: "linkedin", format: "text", topic: "ai", description: "Short commentary on weekend AI news (OpenAI/Google updates)" },
-            { platform: "x", format: "posts", topic: "ai", description: "2-3 punchy posts about AI news" }
+            { 
+              platform: "linkedin", 
+              format: "text", 
+              fields: ["AI", "Tech"], 
+              contentType: "text",
+              description: "Short commentary on weekend AI news (OpenAI/Google updates)" 
+            },
+            { 
+              platform: "x", 
+              format: "posts", 
+              fields: ["AI"], 
+              contentType: "text",
+              description: "2-3 punchy posts about AI news" 
+            }
           ]
         },
         {
           day: "wednesday",
           theme: "Expertise / How-to",
           items: [
-            { platform: "linkedin", format: "carousel", topic: "business", description: "Carousel (5-7 slides) - practical workflow (e.g., 'How AI cleans my Excel data')" },
-            { platform: "x", format: "thread", topic: "business", description: "Thread (5-7 tweets) - repurpose LinkedIn carousel" },
-            { platform: "instagram", format: "reels", topic: "business", description: "Screen recording - automation demo with voiceover" }
+            { 
+              platform: "linkedin", 
+              format: "carousel", 
+              fields: ["Business", "AI"], 
+              contentType: "carousel",
+              creationType: "ai-generated",
+              aiPrompt: "Create 5-7 slides showing step-by-step AI workflow for Excel data cleaning",
+              description: "Carousel (5-7 slides) - practical workflow (e.g., 'How AI cleans my Excel data')" 
+            },
+            { 
+              platform: "x", 
+              format: "thread", 
+              fields: ["Business"], 
+              contentType: "text",
+              description: "Thread (5-7 tweets) - repurpose LinkedIn carousel" 
+            },
+            { 
+              platform: "instagram", 
+              format: "reels", 
+              fields: ["Business", "Tech"], 
+              contentType: "video",
+              creationType: "self-created",
+              script: "Record screen while demonstrating automation. Voiceover: 'This is how I save 2 hours daily...' Location: at desk with clean background",
+              description: "Screen recording - automation demo with voiceover" 
+            }
           ]
         },
         {
           day: "friday",
           theme: "Lifestyle / Vision",
           items: [
-            { platform: "linkedin", format: "photo+text", topic: "lifestyle", description: "Personal story - photo of Jan + text about how AI changed his work perspective" },
-            { platform: "x", format: "hot-take", topic: "lifestyle", description: "One provocative opinion (e.g., 'In 2026, a CFO without AI skills will be unemployable')" },
-            { platform: "instagram", format: "reels", topic: "lifestyle", description: "Talking head - 20s selfie video: 'This is my biggest lesson this week...'" }
+            { 
+              platform: "linkedin", 
+              format: "photo+text", 
+              fields: ["Personal Brand", "Mindset"], 
+              contentType: "image",
+              creationType: "self-created",
+              script: "Take a candid photo at workspace or outdoor location. Show authentic moment of reflection or work",
+              description: "Personal story - photo of Jan + text about how AI changed his work perspective" 
+            },
+            { 
+              platform: "x", 
+              format: "hot-take", 
+              fields: ["AI", "Business"], 
+              contentType: "text",
+              description: "One provocative opinion (e.g., 'In 2026, a CFO without AI skills will be unemployable')" 
+            },
+            { 
+              platform: "instagram", 
+              format: "reels", 
+              fields: ["Personal Brand", "Mindset"], 
+              contentType: "video",
+              creationType: "self-created",
+              script: "20s selfie video, natural lighting. Start: 'This is my biggest lesson this week...' End with actionable takeaway. Location: home office or outdoor",
+              description: "Talking head - 20s selfie video: 'This is my biggest lesson this week...'" 
+            }
           ]
         }
       ]
@@ -91,26 +155,82 @@ const EXAMPLE_SCHEDULE: ContentSchedule = {
           day: "monday",
           theme: "AI News & Insights",
           items: [
-            { platform: "linkedin", format: "text", topic: "ai", description: "AI industry analysis or trend commentary" },
-            { platform: "x", format: "posts", topic: "ai", description: "2-3 posts with insights on AI developments" }
+            { 
+              platform: "linkedin", 
+              format: "text", 
+              fields: ["AI", "Tech"], 
+              contentType: "text",
+              description: "AI industry analysis or trend commentary" 
+            },
+            { 
+              platform: "x", 
+              format: "posts", 
+              fields: ["AI"], 
+              contentType: "text",
+              description: "2-3 posts with insights on AI developments" 
+            }
           ]
         },
         {
           day: "wednesday",
           theme: "Expertise / How-to",
           items: [
-            { platform: "linkedin", format: "carousel", topic: "business", description: "Carousel - business/productivity workflow with AI" },
-            { platform: "x", format: "thread", topic: "business", description: "Thread - repurpose LinkedIn content" },
-            { platform: "instagram", format: "reels", topic: "business", description: "Demo or tutorial reel" }
+            { 
+              platform: "linkedin", 
+              format: "carousel", 
+              fields: ["Business", "Startup"], 
+              contentType: "carousel",
+              creationType: "ai-generated",
+              aiPrompt: "Create 5-7 professional slides showing AI productivity hack for entrepreneurs",
+              description: "Carousel - business/productivity workflow with AI" 
+            },
+            { 
+              platform: "x", 
+              format: "thread", 
+              fields: ["Business"], 
+              contentType: "text",
+              description: "Thread - repurpose LinkedIn content" 
+            },
+            { 
+              platform: "instagram", 
+              format: "reels", 
+              fields: ["Education", "Tech"], 
+              contentType: "video",
+              creationType: "self-created",
+              script: "Quick tutorial showing one AI tool. Start: 'Stop doing X manually, here's why...' Screen recording with face overlay",
+              description: "Demo or tutorial reel" 
+            }
           ]
         },
         {
           day: "friday",
           theme: "Lifestyle / Vision",
           items: [
-            { platform: "linkedin", format: "photo+text", topic: "lifestyle", description: "Behind-the-scenes or personal reflection" },
-            { platform: "x", format: "hot-take", topic: "lifestyle", description: "Bold prediction or contrarian view" },
-            { platform: "instagram", format: "reels", topic: "lifestyle", description: "Personal video message" }
+            { 
+              platform: "linkedin", 
+              format: "photo+text", 
+              fields: ["Personal Brand"], 
+              contentType: "image",
+              creationType: "self-created",
+              script: "Behind-the-scenes photo: workspace, meeting, or creative process. Show the human side",
+              description: "Behind-the-scenes or personal reflection" 
+            },
+            { 
+              platform: "x", 
+              format: "hot-take", 
+              fields: ["AI", "Mindset"], 
+              contentType: "text",
+              description: "Bold prediction or contrarian view" 
+            },
+            { 
+              platform: "instagram", 
+              format: "reels", 
+              fields: ["Personal Brand", "Mindset"], 
+              contentType: "video",
+              creationType: "self-created",
+              script: "Personal video message: share a vulnerable moment or lesson. Natural setting, eye contact with camera",
+              description: "Personal video message" 
+            }
           ]
         }
       ]
@@ -131,10 +251,21 @@ const PLATFORM_COLORS: Record<string, string> = {
   YouTube: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
-const TOPIC_COLORS: Record<string, string> = {
-  ai: "bg-emerald-500/20 text-emerald-400",
-  business: "bg-amber-500/20 text-amber-400",
-  lifestyle: "bg-purple-500/20 text-purple-400",
+const FIELD_COLORS: Record<FieldType, string> = {
+  "AI": "bg-emerald-500/20 text-emerald-400",
+  "Business": "bg-amber-500/20 text-amber-400",
+  "Personal Brand": "bg-purple-500/20 text-purple-400",
+  "Mindset": "bg-cyan-500/20 text-cyan-400",
+  "Tech": "bg-blue-500/20 text-blue-400",
+  "Startup": "bg-orange-500/20 text-orange-400",
+  "Education": "bg-rose-500/20 text-rose-400",
+};
+
+const CONTENT_TYPE_ICONS: Record<ContentType, string> = {
+  "text": "📝",
+  "image": "🖼️",
+  "carousel": "📑",
+  "video": "🎬",
 };
 
 const DAY_NAMES: Record<string, string> = {
@@ -301,13 +432,18 @@ export const PostsAgent = () => {
         .select("name, content_notes, field")
         .not("content_notes", "is", null);
 
+      // Match creators based on item's fields (case-insensitive match)
       const relevantContent = creators
-        ?.filter(c => c.field?.some(f => f.toLowerCase() === item.topic))
+        ?.filter(c => c.field?.some(creatorField => 
+          item.fields.some(itemField => 
+            creatorField.toLowerCase() === itemField.toLowerCase()
+          )
+        ))
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
 
-      // Check if this is an AI news post
-      const isAINews = item.topic === "ai" && 
+      // Check if this is an AI news post (fields include AI and description mentions news)
+      const isAINews = item.fields.includes("AI") && 
         (item.description.toLowerCase().includes("news") || 
          item.description.toLowerCase().includes("update") ||
          item.description.toLowerCase().includes("weekend"));
@@ -317,11 +453,14 @@ export const PostsAgent = () => {
           type: "post",
           topic: item.description,
           platform: item.platform,
-          category: item.topic,
+          category: item.fields[0]?.toLowerCase() || "ai", // Primary field
           format: item.format,
+          contentType: item.contentType,
           description: item.description,
           creatorContent: relevantContent,
           useWebSearch: isAINews,
+          aiPrompt: item.aiPrompt,
+          script: item.script,
         },
       });
 
@@ -585,18 +724,43 @@ export const PostsAgent = () => {
                           key={idx}
                           className="p-4 rounded-lg bg-muted/30 border border-border/50"
                         >
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span className={`text-xs px-2 py-0.5 rounded border ${PLATFORM_COLORS[item.platform]}`}>
                               {item.platform}
                             </span>
                             <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                              {item.format}
+                              {CONTENT_TYPE_ICONS[item.contentType]} {item.format}
                             </span>
-                            <span className={`text-xs px-2 py-0.5 rounded ${TOPIC_COLORS[item.topic]}`}>
-                              {item.topic}
-                            </span>
+                            {item.fields.map((field, fIdx) => (
+                              <span key={fIdx} className={`text-xs px-2 py-0.5 rounded ${FIELD_COLORS[field]}`}>
+                                {field}
+                              </span>
+                            ))}
+                            {item.creationType && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${item.creationType === 'ai-generated' ? 'bg-violet-500/20 text-violet-400' : 'bg-teal-500/20 text-teal-400'}`}>
+                                {item.creationType === 'ai-generated' ? '🤖 AI' : '📹 Self'}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm">{item.description}</p>
+                          
+                          {/* Show AI Prompt or Script for non-text content */}
+                          {item.contentType !== "text" && (item.aiPrompt || item.script) && (
+                            <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
+                              {item.aiPrompt && (
+                                <div className="text-xs">
+                                  <span className="font-medium text-violet-400">AI Prompt: </span>
+                                  <span className="text-muted-foreground">{item.aiPrompt}</span>
+                                </div>
+                              )}
+                              {item.script && (
+                                <div className="text-xs">
+                                  <span className="font-medium text-teal-400">Script: </span>
+                                  <span className="text-muted-foreground">{item.script}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           
                           {item.generatedContent && (
                             <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">

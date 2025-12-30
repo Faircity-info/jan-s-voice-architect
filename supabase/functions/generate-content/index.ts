@@ -11,6 +11,7 @@ interface GenerateRequest {
   platform?: string;
   category?: string;
   format?: string;
+  contentType?: "text" | "image" | "carousel" | "video";
   description?: string;
   comment?: string;
   context?: string;
@@ -20,6 +21,8 @@ interface GenerateRequest {
   style?: string;
   creatorContent?: string;
   useWebSearch?: boolean;
+  aiPrompt?: string; // For AI-generated visual content
+  script?: string; // For self-created content
 }
 
 serve(async (req) => {
@@ -86,11 +89,32 @@ OUTPUT FORMAT:
         (body.category === "ai" && body.topic?.toLowerCase().includes("news")) ||
         (body.description?.toLowerCase().includes("news") && body.category === "ai");
       
+      // Build content type specific instructions
+      let contentTypeInstructions = "";
+      if (body.contentType === "carousel") {
+        contentTypeInstructions = `\n\nCONTENT TYPE: Carousel
+Generate the TEXT that will accompany this carousel post. The carousel visual will be created separately.
+${body.aiPrompt ? `AI generation prompt for visuals: ${body.aiPrompt}` : ""}
+Focus on writing a compelling caption that introduces the carousel content and creates curiosity to swipe.`;
+      } else if (body.contentType === "image") {
+        contentTypeInstructions = `\n\nCONTENT TYPE: Image Post
+Generate the TEXT caption that will accompany this image.
+${body.aiPrompt ? `The image will be AI-generated with prompt: ${body.aiPrompt}` : ""}
+${body.script ? `The image will be self-created: ${body.script}` : ""}
+Focus on a caption that complements the visual and tells a story.`;
+      } else if (body.contentType === "video") {
+        contentTypeInstructions = `\n\nCONTENT TYPE: Video/Reel
+Generate the TEXT caption that will accompany this video.
+${body.script ? `Video script/directions: ${body.script}` : ""}
+Also provide the video caption text that will appear when the video is posted.`;
+      }
+      
       if (isAINewsPost) {
         userPrompt = `Generate a ${body.format || "post"} about: ${body.topic || body.description}
 
 Category: ${body.category || "general"}
 Platform: ${body.platform || "LinkedIn"}
+${contentTypeInstructions}
 
 IMPORTANT: This is an AI news post. Search the web for the LATEST AI news from the past 7 days. Include specific recent announcements, releases, or developments from major AI companies (OpenAI, Google, Anthropic, Meta, Microsoft, etc.). 
 
@@ -104,6 +128,7 @@ Write the post now. Be direct and valuable. Output plain text only, no markdown.
 
 Category: ${body.category || "general"}
 Platform: ${body.platform || "LinkedIn"}
+${contentTypeInstructions}
 ${body.creatorContent ? `\nReference insights from other creators:\n${body.creatorContent}` : ""}
 
 Write the post now. Be direct and valuable. Output plain text only, no markdown.`;
