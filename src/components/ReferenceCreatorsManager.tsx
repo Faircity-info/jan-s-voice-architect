@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Youtube, Instagram, Linkedin, Twitter, Podcast, Trash2, Edit2, Check, ExternalLink } from "lucide-react";
+import { Plus, X, Youtube, Instagram, Linkedin, Twitter, Podcast, Trash2, Edit2, Check, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CreatorContentManager } from "./CreatorContentManager";
 
 interface ReferenceCreator {
   id: string;
@@ -12,12 +13,23 @@ interface ReferenceCreator {
   linkedin: boolean;
   x_twitter: boolean;
   spotify: boolean;
-  field: string | null;
+  field: string[] | null;
   priority: string | null;
   notes: string | null;
   analyzed: boolean;
   style_profile: any;
 }
+
+// Standardized fields for multi-select
+const FIELD_OPTIONS = [
+  { value: "AI", label: "AI" },
+  { value: "Business", label: "Business" },
+  { value: "Personal Brand", label: "Personal Brand" },
+  { value: "Mindset", label: "Mindset" },
+  { value: "Tech", label: "Tech" },
+  { value: "Startup", label: "Startup" },
+  { value: "Education", label: "Education" },
+];
 
 const priorityColors: Record<string, string> = {
   "VELMI VYSOKÁ": "bg-red-500/20 text-red-400 border-red-500/30",
@@ -46,6 +58,7 @@ export const ReferenceCreatorsManager = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [contentManagerCreator, setContentManagerCreator] = useState<ReferenceCreator | null>(null);
   const { toast } = useToast();
 
   // Form state
@@ -56,7 +69,7 @@ export const ReferenceCreatorsManager = () => {
     linkedin: false,
     x_twitter: false,
     spotify: false,
-    field: "",
+    fields: [] as string[],
     priority: "Střední" as string,
     notes: "",
   });
@@ -106,7 +119,7 @@ export const ReferenceCreatorsManager = () => {
             linkedin: formData.linkedin,
             x_twitter: formData.x_twitter,
             spotify: formData.spotify,
-            field: formData.field || null,
+            field: formData.fields.length > 0 ? formData.fields : null,
             priority: formData.priority,
             notes: formData.notes || null,
           })
@@ -124,7 +137,7 @@ export const ReferenceCreatorsManager = () => {
             linkedin: formData.linkedin,
             x_twitter: formData.x_twitter,
             spotify: formData.spotify,
-            field: formData.field || null,
+            field: formData.fields.length > 0 ? formData.fields : null,
             priority: formData.priority,
             notes: formData.notes || null,
           });
@@ -153,7 +166,7 @@ export const ReferenceCreatorsManager = () => {
       linkedin: creator.linkedin,
       x_twitter: creator.x_twitter,
       spotify: creator.spotify,
-      field: creator.field || "",
+      fields: creator.field || [],
       priority: creator.priority || "Střední",
       notes: creator.notes || "",
     });
@@ -189,12 +202,21 @@ export const ReferenceCreatorsManager = () => {
       linkedin: false,
       x_twitter: false,
       spotify: false,
-      field: "",
+      fields: [],
       priority: "Střední",
       notes: "",
     });
     setEditingId(null);
     setShowAddForm(false);
+  };
+
+  const toggleField = (fieldValue: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      fields: prev.fields.includes(fieldValue)
+        ? prev.fields.filter((f) => f !== fieldValue)
+        : [...prev.fields, fieldValue],
+    }));
   };
 
   const groupedByPriority = creators.reduce((acc, creator) => {
@@ -298,30 +320,38 @@ export const ReferenceCreatorsManager = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5">Obor</label>
-                    <input
-                      type="text"
-                      value={formData.field}
-                      onChange={(e) => setFormData({ ...formData, field: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                      placeholder="např. AI, Business"
-                    />
+                <div>
+                  <label className="block text-sm font-medium mb-2">Obory</label>
+                  <div className="flex flex-wrap gap-2">
+                    {FIELD_OPTIONS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => toggleField(value)}
+                        className={`px-3 py-1.5 rounded-lg border transition-all text-sm ${
+                          formData.fields.includes(value)
+                            ? "bg-primary/20 border-primary text-primary"
+                            : "bg-muted/50 border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5">Priorita</label>
-                    <select
-                      value={formData.priority}
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                    >
-                      <option value="VELMI VYSOKÁ">VELMI VYSOKÁ</option>
-                      <option value="Vysoká">Vysoká</option>
-                      <option value="Střední">Střední</option>
-                      <option value="Nízká">Nízká</option>
-                    </select>
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Priorita</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  >
+                    <option value="VELMI VYSOKÁ">VELMI VYSOKÁ</option>
+                    <option value="Vysoká">Vysoká</option>
+                    <option value="Střední">Střední</option>
+                    <option value="Nízká">Nízká</option>
+                  </select>
                 </div>
 
                 <div>
@@ -384,6 +414,13 @@ export const ReferenceCreatorsManager = () => {
                       <h3 className="font-medium text-foreground">{creator.name}</h3>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
+                          onClick={() => setContentManagerCreator(creator)}
+                          className="p-1.5 rounded-lg hover:bg-primary/20 transition-colors"
+                          title="Spravovat obsah"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                        <button
                           onClick={() => handleEdit(creator)}
                           className="p-1.5 rounded-lg hover:bg-muted transition-colors"
                         >
@@ -398,8 +435,14 @@ export const ReferenceCreatorsManager = () => {
                       </div>
                     </div>
 
-                    {creator.field && (
-                      <p className="text-xs text-muted-foreground mb-2">{creator.field}</p>
+                    {creator.field && creator.field.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {creator.field.map((f) => (
+                          <span key={f} className="px-1.5 py-0.5 rounded text-[10px] bg-accent text-accent-foreground">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
                     )}
 
                     <div className="flex items-center gap-2 mb-2">
@@ -434,6 +477,17 @@ export const ReferenceCreatorsManager = () => {
           </button>
         </div>
       )}
+
+      {/* Content Manager Modal */}
+      <AnimatePresence>
+        {contentManagerCreator && (
+          <CreatorContentManager
+            creatorId={contentManagerCreator.id}
+            creatorName={contentManagerCreator.name}
+            onClose={() => setContentManagerCreator(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
