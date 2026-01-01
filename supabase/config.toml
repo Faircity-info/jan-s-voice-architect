@@ -2,3 +2,6 @@ project_id = "dilnxcikpgilbfqyqiak"
 
 [functions.generate-content]
 verify_jwt = false
+
+[functions.add-creator-content]
+verify_jwt = false
