@@ -1,39 +1,27 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+async function processYouTubeVideo(
+  youtube_url: string,
+  video_title: string,
+  creator_name: string,
+  GEMINI_API_KEY: string,
+  supabaseUrl: string,
+  supabaseKey: string
+) {
+  console.log('Background processing started for:', youtube_url);
+  
   try {
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
-
-    const { youtube_url, video_title, creator_name } = await req.json();
-    
-    console.log('Request:', { youtube_url, video_title, creator_name });
-
-    if (!youtube_url) {
-      return new Response(
-        JSON.stringify({ error: 'Missing youtube_url' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Normalize YouTube URL
     let normalizedUrl = youtube_url.trim();
     if (!normalizedUrl.startsWith('http')) {
       normalizedUrl = `https://www.youtube.com/watch?v=${normalizedUrl}`;
     }
-
-    console.log('Calling Gemini API with YouTube URL:', normalizedUrl);
 
     const prompt = `Analyzuj toto YouTube video a vytvoř podrobné summary v češtině.
 
@@ -49,7 +37,7 @@ Zaměř se na:
 
 Odpověz pouze v češtině.`;
 
-    // Use Gemini 2.5 Flash which handles YouTube videos natively
+    // Call Gemini API
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
@@ -81,24 +69,157 @@ Odpověz pouze v češtině.`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      return;
     }
 
     const data = await response.json();
-    console.log('Gemini response received');
-    
     const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     if (!summary) {
-      console.error('No summary in response:', JSON.stringify(data, null, 2));
-      throw new Error('No summary generated from Gemini');
+      console.error('No summary generated from Gemini');
+      return;
     }
 
-    console.log('Summary generated successfully, length:', summary.length);
+    console.log('Summary generated, length:', summary.length);
 
+    // Save to database
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Find creator by name (case-insensitive partial match)
+    const { data: creators, error: findError } = await supabase
+      .from('reference_creators')
+      .select('id, name')
+      .ilike('name', `%${creator_name}%`)
+      .limit(1);
+
+    if (findError) {
+      console.error('Error finding creator:', findError);
+      return;
+    }
+
+    if (!creators || creators.length === 0) {
+      console.log('Creator not found, creating new one:', creator_name);
+      
+      // Create new creator
+      const { data: newCreator, error: createError } = await supabase
+        .from('reference_creators')
+        .insert({
+          name: creator_name,
+          youtube: true,
+          analyzed: false
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('Error creating creator:', createError);
+        return;
+      }
+
+      // Add content for new creator
+      const { error: insertError } = await supabase
+        .from('creator_content')
+        .insert({
+          creator_id: newCreator.id,
+          content: summary,
+          platform: 'YouTube',
+          source_url: normalizedUrl,
+          key_insights: video_title
+        });
+
+      if (insertError) {
+        console.error('Error inserting content:', insertError);
+      } else {
+        console.log('Content saved for new creator:', creator_name);
+      }
+    } else {
+      // Add content for existing creator
+      const { error: insertError } = await supabase
+        .from('creator_content')
+        .insert({
+          creator_id: creators[0].id,
+          content: summary,
+          platform: 'YouTube',
+          source_url: normalizedUrl,
+          key_insights: video_title
+        });
+
+      if (insertError) {
+        console.error('Error inserting content:', insertError);
+      } else {
+        console.log('Content saved for creator:', creators[0].name);
+      }
+    }
+
+  } catch (error) {
+    console.error('Background processing error:', error);
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
+    }
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Supabase configuration missing');
+    }
+
+    const { youtube_url, video_title, creator_name } = await req.json();
+    
+    console.log('Request received:', { youtube_url, video_title, creator_name });
+
+    if (!youtube_url) {
+      return new Response(
+        JSON.stringify({ error: 'Missing youtube_url' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!creator_name) {
+      return new Response(
+        JSON.stringify({ error: 'Missing creator_name' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Start background processing (non-blocking)
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    (globalThis as any).EdgeRuntime?.waitUntil?.(
+      processYouTubeVideo(
+        youtube_url,
+        video_title || '',
+        creator_name,
+        GEMINI_API_KEY,
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
+    ) ?? processYouTubeVideo(
+      youtube_url,
+      video_title || '',
+      creator_name,
+      GEMINI_API_KEY,
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    // Return immediately
     return new Response(
-      JSON.stringify({ success: true, summary }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: true, 
+        message: 'Video processing started. Summary will be saved to database when complete.',
+        youtube_url,
+        creator_name
+      }),
+      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
