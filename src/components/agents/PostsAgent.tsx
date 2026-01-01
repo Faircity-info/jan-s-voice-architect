@@ -434,13 +434,12 @@ export const PostsAgent = () => {
         .eq("is_active", true)
         .single();
 
-      // 2. Fetch creator notes (high-level style info)
+      // 2. Fetch ALL creators with their fields (not just those with notes)
       const { data: creators } = await supabase
         .from("reference_creators")
-        .select("id, name, content_notes, field")
-        .not("content_notes", "is", null);
+        .select("id, name, content_notes, field");
 
-      // 3. Fetch detailed creator content (RAG-style knowledge base)
+      // 3. Filter creators by matching fields
       const relevantCreatorIds = creators
         ?.filter(c => c.field?.some(creatorField => 
           item.fields.some(itemField => 
@@ -449,11 +448,16 @@ export const PostsAgent = () => {
         ))
         .map(c => c.id) || [];
 
+      console.log("Weekly generation - Fields:", item.fields);
+      console.log("Relevant creator IDs:", relevantCreatorIds);
+
+      // 4. Fetch detailed creator content (RAG-style knowledge base)
       const { data: creatorContentData } = await supabase
         .from("creator_content")
-        .select("content, key_insights, platform")
-        .in("creator_id", relevantCreatorIds)
-        .limit(20); // Limit to prevent token overflow
+        .select("content, key_insights, platform, creator_id")
+        .in("creator_id", relevantCreatorIds.length > 0 ? relevantCreatorIds : ['00000000-0000-0000-0000-000000000000']);
+
+      console.log("Found creator content entries:", creatorContentData?.length || 0);
 
       // 4. Fetch historical posts to avoid duplication
       const { data: historicalPosts } = await supabase
@@ -561,22 +565,26 @@ export const PostsAgent = () => {
         .eq("is_active", true)
         .single();
 
-      // 2. Fetch creator notes
+      // 2. Fetch ALL creators with their fields (not just those with notes)
       const { data: creators } = await supabase
         .from("reference_creators")
-        .select("id, name, content_notes, field")
-        .not("content_notes", "is", null);
+        .select("id, name, content_notes, field");
 
-      // 3. Fetch detailed creator content for this category
+      // 3. Filter creators by matching category/field
       const relevantCreatorIds = creators
         ?.filter(c => c.field?.some(f => f.toLowerCase() === adhocCategory))
         .map(c => c.id) || [];
 
+      console.log("Ad-hoc generation - Category:", adhocCategory);
+      console.log("Relevant creator IDs:", relevantCreatorIds);
+
+      // 4. Fetch detailed creator content for this category
       const { data: creatorContentData } = await supabase
         .from("creator_content")
-        .select("content, key_insights, platform")
-        .in("creator_id", relevantCreatorIds)
-        .limit(15);
+        .select("content, key_insights, platform, creator_id")
+        .in("creator_id", relevantCreatorIds.length > 0 ? relevantCreatorIds : ['00000000-0000-0000-0000-000000000000']);
+
+      console.log("Found creator content entries:", creatorContentData?.length || 0);
 
       // 4. Fetch historical posts for this platform
       const { data: historicalPosts } = await supabase
