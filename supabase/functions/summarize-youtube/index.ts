@@ -35,11 +35,12 @@ serve(async (req) => {
 
     console.log('Calling Gemini API with YouTube URL:', normalizedUrl);
 
-    const prompt = `Toto je YouTube video.
+    const prompt = `Analyzuj toto YouTube video a vytvoř podrobné summary v češtině.
+
 Název videa: ${video_title || 'neznámý'}
 Autor: ${creator_name || 'neznámý'}
 
-Vytvoř z tohoto videa podrobné summary v češtině. Zaměř se na:
+Zaměř se na:
 - Hlavní téma a poselství videa
 - Klíčové body, tipy a rady
 - Zajímavé citáty nebo koncepty
@@ -48,9 +49,9 @@ Vytvoř z tohoto videa podrobné summary v češtině. Zaměř se na:
 
 Odpověz pouze v češtině.`;
 
-    // Use Gemini API with YouTube URL as fileData
+    // Use Gemini 2.5 Flash which handles YouTube videos natively
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -69,7 +70,11 @@ Odpověz pouze v češtině.`;
                 { text: prompt }
               ]
             }
-          ]
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
         }),
       }
     );
@@ -81,15 +86,16 @@ Odpověz pouze v češtině.`;
     }
 
     const data = await response.json();
-    console.log('Gemini response:', JSON.stringify(data, null, 2));
+    console.log('Gemini response received');
     
     const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     if (!summary) {
+      console.error('No summary in response:', JSON.stringify(data, null, 2));
       throw new Error('No summary generated from Gemini');
     }
 
-    console.log('Summary generated successfully');
+    console.log('Summary generated successfully, length:', summary.length);
 
     return new Response(
       JSON.stringify({ success: true, summary }),
