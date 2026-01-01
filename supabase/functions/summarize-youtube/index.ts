@@ -73,7 +73,7 @@ Odpověz pouze v češtině.`;
           ],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 4096,
+            maxOutputTokens: 16384,
           }
         }),
       }
