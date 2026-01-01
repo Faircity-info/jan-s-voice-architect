@@ -9,10 +9,6 @@ const corsHeaders = {
 interface AddContentRequest {
   creator_name: string;
   summary: string;
-  platform?: string;
-  source_url?: string;
-  key_insights?: string;
-  posted_at?: string;
 }
 
 serve(async (req) => {
@@ -82,10 +78,7 @@ serve(async (req) => {
       .insert({
         creator_id: creator.id,
         content: body.summary,
-        platform: body.platform || 'YouTube',
-        source_url: body.source_url || null,
-        key_insights: body.key_insights || null,
-        posted_at: body.posted_at ? new Date(body.posted_at).toISOString() : null,
+        platform: 'YouTube',
       })
       .select()
       .single();
