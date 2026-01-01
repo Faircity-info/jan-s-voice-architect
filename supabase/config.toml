@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.add-creator-content]
 verify_jwt = false
+
+[functions.summarize-youtube]
+verify_jwt = false

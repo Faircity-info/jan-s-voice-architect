@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, FileText, MessageSquare, MessagesSquare, PenLine } from "lucide-react";
+import { Users, FileText, MessageSquare, MessagesSquare, PenLine, Youtube } from "lucide-react";
 import { Header } from "@/components/Header";
 import { JansContentSection } from "@/components/JansContentSection";
 import { ReferenceCreatorsManager } from "@/components/ReferenceCreatorsManager";
 import { PostsAgent } from "@/components/agents/PostsAgent";
 import { RepliesAgent } from "@/components/agents/RepliesAgent";
 import { CommentsAgent } from "@/components/agents/CommentsAgent";
+import YouTubeSummaryTest from "@/components/YouTubeSummaryTest";
 
-type Tab = "jans-content" | "creators" | "agent-posts" | "agent-replies" | "agent-comments";
+type Tab = "jans-content" | "creators" | "agent-posts" | "agent-replies" | "agent-comments" | "youtube-test";
 
 const tabs = [
   { id: "jans-content" as Tab, label: "Jan's Content", icon: FileText },
@@ -16,6 +17,7 @@ const tabs = [
   { id: "agent-posts" as Tab, label: "Posts Agent", icon: PenLine },
   { id: "agent-replies" as Tab, label: "Replies Agent", icon: MessageSquare },
   { id: "agent-comments" as Tab, label: "Comments Agent", icon: MessagesSquare },
+  { id: "youtube-test" as Tab, label: "YouTube Test", icon: Youtube },
 ];
 
 const Index = () => {
@@ -120,6 +122,18 @@ const Index = () => {
               transition={{ duration: 0.3 }}
             >
               <CommentsAgent />
+            </motion.div>
+          )}
+
+          {activeTab === "youtube-test" && (
+            <motion.div
+              key="youtube-test"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <YouTubeSummaryTest />
             </motion.div>
           )}
         </AnimatePresence>
