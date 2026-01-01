@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const YouTubeSummaryTest = () => {
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
   const [creatorName, setCreatorName] = useState('');
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +39,11 @@ const YouTubeSummaryTest = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('summarize-youtube', {
-        body: { youtube_url: youtubeUrl }
+        body: { 
+          youtube_url: youtubeUrl,
+          video_title: videoTitle,
+          creator_name: creatorName
+        }
       });
 
       if (error) {
@@ -91,10 +96,20 @@ const YouTubeSummaryTest = () => {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="video-title">Název videa (pro ověření)</Label>
+            <Input
+              id="video-title"
+              placeholder="How to Make 2026 The Best Year of Your Life (With AI)"
+              value={videoTitle}
+              onChange={(e) => setVideoTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="creator-name">Jméno Creatora</Label>
             <Input
               id="creator-name"
-              placeholder="Alex Hormozi"
+              placeholder="Liam Ottley"
               value={creatorName}
               onChange={(e) => setCreatorName(e.target.value)}
             />
