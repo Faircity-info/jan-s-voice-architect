@@ -7,6 +7,8 @@ const corsHeaders = {
 
 interface SummarizeRequest {
   youtube_url: string;
+  video_title?: string;
+  creator_name?: string;
 }
 
 serve(async (req) => {
@@ -31,6 +33,18 @@ serve(async (req) => {
       );
     }
 
+    // Build verification context
+    const verificationContext = [];
+    if (body.video_title) {
+      verificationContext.push(`Expected video title: "${body.video_title}"`);
+    }
+    if (body.creator_name) {
+      verificationContext.push(`Expected creator: "${body.creator_name}"`);
+    }
+    const verificationPrompt = verificationContext.length > 0 
+      ? `\n\nIMPORTANT VERIFICATION: Before creating the summary, verify that the video at this URL matches these expected details:\n${verificationContext.join('\n')}\nIf the video title or creator doesn't match, start your response with a WARNING explaining the mismatch.\n`
+      : '';
+
     // Call Gemini to analyze the YouTube video
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -51,7 +65,7 @@ serve(async (req) => {
 4. **Content Style**: How does the creator present? (tone, pacing, visual style)
 5. **Unique Frameworks**: Any proprietary concepts, methods, or terminology they use
 6. **Call to Action**: What does the creator want viewers to do?
-
+${verificationPrompt}
 Write the summary in Czech language. Be thorough but concise. Focus on extractable insights that could help understand this creator's style and content approach.`
           },
           {
