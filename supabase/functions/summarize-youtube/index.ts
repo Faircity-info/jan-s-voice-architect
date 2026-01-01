@@ -18,60 +18,87 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-// Fetch YouTube transcript using the internal API
+// Fetch YouTube transcript
 async function getYouTubeTranscript(videoId: string): Promise<string> {
-  // First, get the video page to extract caption track info
+  // Fetch the video page to get caption track info
   const videoPageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9,cs;q=0.8',
     }
   });
   
   const html = await videoPageResponse.text();
   
-  // Extract captions data from the page
-  const captionMatch = html.match(/"captions":\s*(\{[^}]+playerCaptionsTracklistRenderer[^}]+\})/);
+  // Extract caption tracks from the page
+  const captionMatch = html.match(/\"captionTracks\":(\[.*?\])/);
   if (!captionMatch) {
-    // Try alternative pattern
-    const altMatch = html.match(/\"captionTracks\":(\[.*?\])/);
-    if (!altMatch) {
-      throw new Error('No captions available for this video');
-    }
-    
-    const captionTracks = JSON.parse(altMatch[1]);
-    if (captionTracks.length === 0) {
-      throw new Error('No caption tracks found');
-    }
-    
-    // Prefer Czech or English
-    let selectedTrack = captionTracks.find((t: any) => t.languageCode === 'cs') ||
-                        captionTracks.find((t: any) => t.languageCode === 'en') ||
-                        captionTracks[0];
-    
-    const captionUrl = selectedTrack.baseUrl;
-    const captionResponse = await fetch(captionUrl);
-    const captionXml = await captionResponse.text();
-    
-    // Parse XML and extract text
-    const textMatches = captionXml.matchAll(/<text[^>]*>([^<]*)<\/text>/g);
-    const texts: string[] = [];
-    for (const match of textMatches) {
-      // Decode HTML entities
-      const text = match[1]
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/\n/g, ' ');
-      texts.push(text);
-    }
-    
-    return texts.join(' ');
+    throw new Error('No captions available for this video');
   }
   
-  throw new Error('Could not parse captions data');
+  const captionTracks = JSON.parse(captionMatch[1]);
+  if (captionTracks.length === 0) {
+    throw new Error('No caption tracks found');
+  }
+  
+  // Prefer English or Czech, fallback to first available
+  let selectedTrack = captionTracks.find((t: any) => t.languageCode === 'en') ||
+                      captionTracks.find((t: any) => t.languageCode === 'cs') ||
+                      captionTracks[0];
+  
+  console.log('Selected caption track:', selectedTrack.languageCode);
+  
+  const captionUrl = selectedTrack.baseUrl;
+  const captionResponse = await fetch(captionUrl);
+  const captionXml = await captionResponse.text();
+  
+  // Parse XML and extract text
+  const textMatches = captionXml.matchAll(/<text[^>]*>([^<]*)<\/text>/g);
+  const texts: string[] = [];
+  for (const match of textMatches) {
+    const text = match[1]
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\n/g, ' ')
+      .trim();
+    if (text) texts.push(text);
+  }
+  
+  return texts.join(' ');
+}
+
+// Call Google Gemini API directly
+async function callGeminiAPI(apiKey: string, prompt: string): Promise<string> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: prompt }
+            ]
+          }
+        ]
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Gemini API error:', response.status, errorText);
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 serve(async (req) => {
@@ -80,9 +107,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
     const { youtube_url, video_title, creator_name } = await req.json();
@@ -119,19 +146,7 @@ serve(async (req) => {
       );
     }
 
-    // Send transcript to Gemini for summarization
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: `Toto je transkript YouTube videa.
+    const prompt = `Toto je transkript YouTube videa.
 Název videa: ${video_title || 'neznámý'}
 Autor: ${creator_name || 'neznámý'}
 
@@ -145,38 +160,10 @@ Vytvoř z tohoto transkriptu podrobné summary v češtině. Zaměř se na:
 - Klíčové body, tipy a rady
 - Zajímavé citáty nebo koncepty
 - Unikátní frameworky nebo metodiky, které autor používá
-- Styl prezentace autora`
-          }
-        ],
-      }),
-    });
+- Styl prezentace autora`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API error:', response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded, please try again later' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Payment required, please add credits' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: 'Failed to analyze video', details: errorText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const data = await response.json();
-    const summary = data.choices?.[0]?.message?.content;
-
+    console.log('Calling Gemini API...');
+    const summary = await callGeminiAPI(GEMINI_API_KEY, prompt);
     console.log('Summary generated successfully');
 
     return new Response(
