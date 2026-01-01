@@ -97,6 +97,9 @@ serve(async (req) => {
 
     const body: GenerateRequest = await req.json();
     console.log("Generate request type:", body.type);
+    console.log("Category:", body.category);
+    console.log("Has creatorInsights:", !!body.creatorInsights, "length:", body.creatorInsights?.length || 0);
+    console.log("CreatorInsights preview:", body.creatorInsights?.substring(0, 500) || "NONE");
 
     // Get platform-specific best practices
     const platformLower = body.platform?.toLowerCase() || "linkedin";
