@@ -11,6 +11,8 @@ interface ContentEntry {
   key_insights: string | null;
   platform: string;
   creator_name: string;
+  created_at?: string;
+  posted_at?: string | null;
 }
 
 interface SelectRequest {
@@ -46,20 +48,22 @@ serve(async (req) => {
     // Build a summary of each entry for the AI to evaluate
     const entrySummaries = entries.map((e, i) => {
       const preview = e.content.substring(0, 800);
-      return `[${i}] ${e.creator_name} (${e.platform}): ${e.key_insights || ""}\nPreview: ${preview}...`;
+      const dateInfo = e.posted_at || e.created_at || "unknown date";
+      return `[${i}] ${e.creator_name} (${e.platform}) - ${dateInfo}: ${e.key_insights || ""}\nPreview: ${preview}...`;
     }).join("\n\n---\n\n");
 
     const systemPrompt = `You are a content relevance expert. Your job is to select the most relevant content pieces for a given topic.
 
 You will receive:
 1. A TOPIC that the user wants to create content about
-2. A list of CONTENT ENTRIES with previews
+2. A list of CONTENT ENTRIES with previews and dates
 
 Your task: Select up to ${maxResults} entries that are MOST RELEVANT to the topic. Consider:
 - Direct topic match (highest priority)
 - Related concepts and frameworks
 - Useful angles or perspectives
 - Complementary information
+- RECENCY BONUS: When two entries are similarly relevant, prefer the newer one. Recent content (within last few weeks) should get a small boost in consideration, but NEVER prioritize a weakly relevant new entry over a highly relevant older one.
 
 Return a JSON object with:
 - "selectedIndices": array of entry indices (numbers) that are most relevant
