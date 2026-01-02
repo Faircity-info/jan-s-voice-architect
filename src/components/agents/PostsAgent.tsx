@@ -565,10 +565,10 @@ export const PostsAgent = () => {
         .eq("is_active", true)
         .single();
 
-      // 2. Fetch ALL creators with their fields (not just those with notes)
+      // 2. Fetch ALL creators with their fields
       const { data: creators } = await supabase
         .from("reference_creators")
-        .select("id, name, content_notes, field");
+        .select("id, name, content_notes, field, notes");
 
       // 3. Filter creators by matching category/field
       const relevantCreatorIds = creators
@@ -578,15 +578,49 @@ export const PostsAgent = () => {
       console.log("Ad-hoc generation - Category:", adhocCategory);
       console.log("Relevant creator IDs:", relevantCreatorIds);
 
-      // 4. Fetch detailed creator content for this category
-      const { data: creatorContentData } = await supabase
+      // 4. Fetch ALL creator content for relevant creators (no limit)
+      const { data: allCreatorContent } = await supabase
         .from("creator_content")
-        .select("content, key_insights, platform, creator_id")
+        .select("id, content, key_insights, platform, creator_id")
         .in("creator_id", relevantCreatorIds.length > 0 ? relevantCreatorIds : ['00000000-0000-0000-0000-000000000000']);
 
-      console.log("Found creator content entries:", creatorContentData?.length || 0);
+      console.log("Found total creator content entries:", allCreatorContent?.length || 0);
 
-      // 4. Fetch historical posts for this platform
+      // 5. Use AI to select the most relevant content for this specific topic
+      let selectedContent: typeof allCreatorContent = [];
+      
+      if (allCreatorContent && allCreatorContent.length > 0) {
+        // Prepare entries for relevance selection
+        const entriesForSelection = allCreatorContent.map(c => ({
+          id: c.id,
+          content: c.content,
+          key_insights: c.key_insights,
+          platform: c.platform,
+          creator_name: creators?.find(cr => cr.id === c.creator_id)?.name || "Unknown"
+        }));
+
+        console.log("Calling select-relevant-content for topic:", adhocIdea);
+
+        const { data: selectionResult, error: selectionError } = await supabase.functions.invoke("select-relevant-content", {
+          body: {
+            topic: adhocIdea,
+            entries: entriesForSelection,
+            maxResults: 5
+          }
+        });
+
+        if (selectionError) {
+          console.error("Selection error, using all content:", selectionError);
+          selectedContent = allCreatorContent.slice(0, 5);
+        } else {
+          console.log("Selection result:", selectionResult);
+          const selectedIds = selectionResult?.selectedIds || [];
+          selectedContent = allCreatorContent.filter(c => selectedIds.includes(c.id));
+          console.log("AI selected", selectedContent.length, "relevant entries");
+        }
+      }
+
+      // 6. Fetch historical posts for this platform
       const { data: historicalPosts } = await supabase
         .from("historical_posts")
         .select("content")
@@ -602,22 +636,23 @@ export const PostsAgent = () => {
         .order("published_at", { ascending: false })
         .limit(10);
 
-      const relevantContent = creators
-        ?.filter(c => c.field?.some(f => f.toLowerCase() === adhocCategory))
-        .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
+      // Build creator profile context (strategic notes about creators)
+      const creatorProfiles = creators
+        ?.filter(c => relevantCreatorIds.includes(c.id))
+        .map(c => `${c.name}: ${c.notes || c.content_notes || "No notes"}`.substring(0, 800))
         .join("\n\n") || "";
 
-      // Build comprehensive creator insights with full content (up to 3000 chars per entry)
-      const creatorInsights = creatorContentData
-        ?.slice(0, 5) // Limit to 5 most relevant entries
+      // Build FULL creator insights from selected content (NO TRUNCATION)
+      const creatorInsights = selectedContent
         .map(c => {
           const creatorName = creators?.find(cr => cr.id === c.creator_id)?.name || "Unknown";
-          return `=== SOURCE: ${creatorName} (${c.platform}) ===\n${c.key_insights || ""}\n\nCONTENT:\n${c.content.substring(0, 3000)}`;
+          // FULL content - no substring limit
+          return `=== SOURCE: ${creatorName} (${c.platform}) ===\n${c.key_insights || ""}\n\nFULL CONTENT:\n${c.content}`;
         })
         .join("\n\n---\n\n") || "";
 
       console.log("Creator insights total length:", creatorInsights.length);
-      console.log("Creator insights preview (first 1000):", creatorInsights.substring(0, 1000));
+      console.log("Using FULL content from", selectedContent.length, "entries");
 
       const allHistorical = [...(historicalPosts || []), ...(publishedGenerated || [])];
       const historicalSummary = allHistorical
@@ -636,8 +671,8 @@ export const PostsAgent = () => {
           category: adhocCategory,
           format: "post",
           styleGuide: styleGuideData?.content || undefined,
-          creatorContent: relevantContent,
-          creatorInsights: creatorInsights || undefined,
+          creatorContent: creatorProfiles, // Strategic creator notes
+          creatorInsights: creatorInsights || undefined, // FULL selected content
           historicalPosts: historicalSummary || undefined,
           useWebSearch: isAINews,
         },

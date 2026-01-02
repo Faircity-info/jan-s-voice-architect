@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.summarize-youtube]
 verify_jwt = false
+
+[functions.select-relevant-content]
+verify_jwt = false
