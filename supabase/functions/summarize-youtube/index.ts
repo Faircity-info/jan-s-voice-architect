@@ -6,6 +6,82 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Model fallback chain: start with fast model, escalate to larger if needed
+const MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro'
+];
+
+async function callGeminiWithModel(
+  model: string,
+  normalizedUrl: string,
+  prompt: string,
+  GEMINI_API_KEY: string
+): Promise<{ success: boolean; summary?: string; error?: string; shouldRetry: boolean }> {
+  console.log(`Trying model: ${model}`);
+  
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  fileData: {
+                    mimeType: "video/*",
+                    fileUri: normalizedUrl
+                  }
+                },
+                { text: prompt }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+          }
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Model ${model} error:`, response.status, errorText);
+      
+      // Check if error suggests we should try a larger model
+      const shouldRetry = response.status === 400 || 
+                          response.status === 413 || 
+                          response.status === 500 ||
+                          errorText.includes('too large') ||
+                          errorText.includes('exceeds') ||
+                          errorText.includes('token') ||
+                          errorText.includes('limit');
+      
+      return { success: false, error: errorText, shouldRetry };
+    }
+
+    const data = await response.json();
+    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (!summary) {
+      console.error(`Model ${model}: No summary in response`);
+      return { success: false, error: 'No summary generated', shouldRetry: true };
+    }
+
+    console.log(`Model ${model} succeeded, summary length:`, summary.length);
+    return { success: true, summary, shouldRetry: false };
+    
+  } catch (error) {
+    console.error(`Model ${model} exception:`, error);
+    return { success: false, error: String(error), shouldRetry: true };
+  }
+}
+
 async function processYouTubeVideo(
   youtube_url: string,
   video_title: string,
@@ -37,50 +113,30 @@ Zaměř se na:
 
 Odpověz pouze v češtině.`;
 
-    // Call Gemini API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  fileData: {
-                    mimeType: "video/*",
-                    fileUri: normalizedUrl
-                  }
-                },
-                { text: prompt }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-          }
-        }),
+    // Try models in order, escalating to larger models on failure
+    let summary: string | null = null;
+    
+    for (const model of MODELS) {
+      const result = await callGeminiWithModel(model, normalizedUrl, prompt, GEMINI_API_KEY);
+      
+      if (result.success && result.summary) {
+        summary = result.summary;
+        console.log(`Successfully processed with model: ${model}`);
+        break;
       }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      return;
+      
+      if (!result.shouldRetry) {
+        console.log(`Model ${model} failed with non-retryable error, stopping`);
+        break;
+      }
+      
+      console.log(`Model ${model} failed, trying next model...`);
     }
-
-    const data = await response.json();
-    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     if (!summary) {
-      console.error('No summary generated from Gemini');
+      console.error('All models failed to process video, giving up silently');
       return;
     }
-
-    console.log('Summary generated, length:', summary.length);
 
     // Save to database
     const supabase = createClient(supabaseUrl, supabaseKey);
