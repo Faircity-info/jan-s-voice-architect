@@ -108,9 +108,16 @@ serve(async (req) => {
     let systemPrompt = "";
     let userPrompt = "";
 
+    // Core expert identity prompt
+    const expertIdentity = `You are a world-class personal branding strategist, professional copywriter, and content creator with 20+ years of experience building influential voices for thought leaders.
+
+You are creating content for JAN KLUZ - a builder, AI expert, and systems thinker. Your job is to write posts that sound authentically like Jan, not like a generic AI.
+
+CRITICAL: ALL OUTPUT MUST BE IN ENGLISH.`;
+
     // Use provided style guide or fallback to default
     const styleGuide = body.styleGuide || `
-You are writing content for Jan Kluz, a builder and AI expert. Follow these strict style rules:
+JAN KLUZ'S COMMUNICATION STYLE:
 
 CORE PHILOSOPHY: "Builder clarity × system thinking × low-noise authority"
 - Prioritize clarity over cleverness
@@ -143,15 +150,14 @@ TONE: Calm and direct
 
     const outputFormat = `
 OUTPUT FORMAT:
-- Output ONLY plain text, ready to copy and paste directly
+- Output ONLY plain text in ENGLISH, ready to copy and paste directly
 - NO markdown formatting (no **, no ##, no -, no *)
 - NO bullet points or lists with special characters
 - Use line breaks for paragraphs, nothing else
 `;
 
     if (body.type === "post") {
-      systemPrompt = styleGuide + platformBestPractices + outputFormat;
-      systemPrompt += `\n\nYou are generating a ${body.format || "post"} for ${body.platform || "LinkedIn"}.`;
+      systemPrompt = expertIdentity + "\n\n" + styleGuide + platformBestPractices + outputFormat;
       
       // Check if this is an AI news post that should use web search
       const isAINewsPost = body.useWebSearch || 
@@ -178,63 +184,82 @@ ${body.script ? `Video script/directions: ${body.script}` : ""}
 Also provide the video caption text that will appear when the video is posted.`;
       }
 
-      // Build historical posts warning
-      let historicalWarning = "";
-      if (body.historicalPosts) {
-        historicalWarning = `\n\nIMPORTANT - AVOID DUPLICATION:
-You have already posted similar content before. DO NOT repeat these themes, hooks, or examples:
-${body.historicalPosts}
-
-Create something FRESH that covers new ground or a new angle on this topic.`;
-      }
-
-      // Build creator insights section (RAG-style)
-      let creatorInsightsSection = "";
+      // Build source materials section (RAG content)
+      let sourceSection = "";
       if (body.creatorInsights) {
-        creatorInsightsSection = `\n\nREFERENCE CREATOR INSIGHTS (use for inspiration, NOT to copy):
-These are insights and content patterns from creators in relevant fields. Extract relevant ideas and synthesize them into Jan's unique voice:
+        sourceSection = `
+
+=== SOURCE MATERIALS ===
+Use the following content as your PRIMARY INFORMATION SOURCE. Extract key ideas, frameworks, and insights from these sources and creatively synthesize them into an original post for Jan.
 
 ${body.creatorInsights}
 
-Remember: Use these as inspiration for angles and ideas, but write in Jan's distinct voice. Never copy directly.`;
+IMPORTANT INSTRUCTIONS FOR USING SOURCES:
+- Mix and blend ideas from different sources creatively
+- Extract the core insights and reframe them in Jan's voice
+- DO NOT copy phrases or structures directly
+- Create something NEW that combines these perspectives
+- The final post should feel like Jan's original thinking, informed by these sources
+`;
       }
 
-      // Build creator notes section
-      let creatorNotesSection = "";
+      // Build creator strategic context
+      let creatorContext = "";
       if (body.creatorContent) {
-        creatorNotesSection = `\n\nCREATOR STYLE NOTES:
-${body.creatorContent}`;
+        creatorContext = `
+
+=== CREATOR STRATEGIC CONTEXT ===
+Background on the thought leaders whose content you're synthesizing:
+${body.creatorContent}
+`;
+      }
+
+      // Build anti-duplication section
+      let antiDuplicationSection = "";
+      if (body.historicalPosts) {
+        antiDuplicationSection = `
+
+=== ALREADY PUBLISHED - DO NOT DUPLICATE ===
+Jan has already published these posts. Your new post MUST be different:
+- Different hook/opening
+- Different examples
+- Different angle or perspective
+- No repeated phrases or structures
+
+Previously published content:
+${body.historicalPosts}
+`;
       }
       
       if (isAINewsPost) {
-        userPrompt = `Generate a ${body.format || "post"} about: ${body.topic || body.description}
+        userPrompt = `CREATE A POST FOR JAN KLUZ
 
-Category: ${body.category || "general"}
-Platform: ${body.platform || "LinkedIn"}
+TOPIC: ${body.topic || body.description}
+CATEGORY: ${body.category || "general"}
+PLATFORM: ${body.platform || "LinkedIn"}
 ${contentTypeInstructions}
-${historicalWarning}
 
-IMPORTANT: This is an AI news post. Search the web for the LATEST AI news from the past 7 days. Include specific recent announcements, releases, or developments from major AI companies (OpenAI, Google, Anthropic, Meta, Microsoft, etc.). 
+SPECIAL INSTRUCTION: This is an AI news post. Search the web for the LATEST AI news from the past 7 days. Include specific recent announcements, releases, or developments from major AI companies (OpenAI, Google, Anthropic, Meta, Microsoft, etc.). Focus on what happened THIS WEEK.
+${sourceSection}
+${creatorContext}
+${antiDuplicationSection}
 
-Do NOT mention old news or generic AI information. Focus on what happened THIS WEEK.
-${creatorInsightsSection}
-${creatorNotesSection}
-
-Write the post now. Be direct and valuable. Output plain text only, no markdown.`;
+Now write the post in Jan's voice. Be direct, valuable, and authentic. Output plain text only, in ENGLISH.`;
       } else {
-        userPrompt = `Generate a ${body.format || "post"} about: ${body.topic || body.description}
+        userPrompt = `CREATE A POST FOR JAN KLUZ
 
-Category: ${body.category || "general"}
-Platform: ${body.platform || "LinkedIn"}
+TOPIC: ${body.topic || body.description}
+CATEGORY: ${body.category || "general"}
+PLATFORM: ${body.platform || "LinkedIn"}
 ${contentTypeInstructions}
-${historicalWarning}
-${creatorInsightsSection}
-${creatorNotesSection}
+${sourceSection}
+${creatorContext}
+${antiDuplicationSection}
 
-Write the post now. Be direct and valuable. Output plain text only, no markdown.`;
+Now write the post in Jan's voice. Be direct, valuable, and authentic. Output plain text only, in ENGLISH.`;
       }
     } else if (body.type === "reply") {
-      systemPrompt = styleGuide + outputFormat;
+      systemPrompt = expertIdentity + "\n\n" + styleGuide + outputFormat;
       systemPrompt += `\n\nYou are generating a reply to a comment. The reply should match Jan's voice while being ${body.tone || "thoughtful"}.`;
       systemPrompt += `\n\nKEEP IT CONCISE: Replies should be 1-3 sentences. Don't over-explain.`;
       
