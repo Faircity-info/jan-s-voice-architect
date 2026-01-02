@@ -607,9 +607,17 @@ export const PostsAgent = () => {
         .map(c => `${c.name}: ${c.content_notes?.substring(0, 500)}`)
         .join("\n\n") || "";
 
+      // Build comprehensive creator insights with full content (up to 3000 chars per entry)
       const creatorInsights = creatorContentData
-        ?.map(c => `[${c.platform}] ${c.key_insights || ""}\n${c.content.substring(0, 400)}`)
-        .join("\n---\n") || "";
+        ?.slice(0, 5) // Limit to 5 most relevant entries
+        .map(c => {
+          const creatorName = creators?.find(cr => cr.id === c.creator_id)?.name || "Unknown";
+          return `=== SOURCE: ${creatorName} (${c.platform}) ===\n${c.key_insights || ""}\n\nCONTENT:\n${c.content.substring(0, 3000)}`;
+        })
+        .join("\n\n---\n\n") || "";
+
+      console.log("Creator insights total length:", creatorInsights.length);
+      console.log("Creator insights preview (first 1000):", creatorInsights.substring(0, 1000));
 
       const allHistorical = [...(historicalPosts || []), ...(publishedGenerated || [])];
       const historicalSummary = allHistorical
